@@ -1,0 +1,5 @@
+numpy
+matplotlib
+monai-weekly[nibabel, tensorboard, ignite]
+pynrrd
+scikit-learn
