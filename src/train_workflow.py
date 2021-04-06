@@ -97,7 +97,7 @@ class TrainingWorkflow():
                 # Segmentacija
                 MaskIntensityd(keys=["image"], mask_key="seg"),
 
-                # Crop forground based on seg image.
+                # Crop foreground based on seg image.
                 CropForegroundd(keys=["image"], source_key="seg", margin=(10, 10, 10)),
 
                 # Normalizacija na CT okno
@@ -204,8 +204,8 @@ class TrainingWorkflow():
 
         set_determinism(seed=0)
         train_trans, valid_trans = self.transformations()
-        train_dataset = Dataset(data=train_data[:], transform=train_trans)#, cache_dir=self.persistent_dataset_dir)
-        valid_dataset = Dataset(data=valid_data[:], transform=valid_trans)#, cache_dir=self.persistent_dataset_dir)
+        train_dataset = PersistentDataset(data=train_data[:], transform=train_trans, cache_dir=self.persistent_dataset_dir)
+        valid_dataset = PersistentDataset(data=valid_data[:], transform=valid_trans, cache_dir=self.persistent_dataset_dir)
 
         train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, pin_memory=pin_memory, num_workers=2)
         valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=True, pin_memory=pin_memory, num_workers=2)
