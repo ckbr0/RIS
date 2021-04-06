@@ -58,6 +58,7 @@ from monai.utils import set_determinism
 from model import ModelCT
 from utils import get_data_from_info, multi_slice_viewer
 from validation_handler import ValidationHandlerCT
+from nrrd_reader import NrrdReader
 
 class TrainingWorkflow():
 
@@ -75,9 +76,7 @@ class TrainingWorkflow():
         train_transforms = Compose(
             [
                 LoadImaged(keys=["image"]),
-                #LoadImaged(keys=["seg"]),
-                #ToNumpyd(keys=["seg"]),
-                #Lambdad(keys=["seg"], func=lambda x: np.moveaxis(x, 0, -1)),
+                LoadImaged(keys=["seg"], reader=NrrdReader()),
                 MaskIntensityd(keys=["image"], mask_key="seg"),
                 AddChanneld(keys=["image"]),
                 ScaleIntensityd(keys=["image"]),
@@ -89,9 +88,7 @@ class TrainingWorkflow():
         valid_transforms = Compose(
             [
                 LoadImaged(keys=["image"]),
-                #LoadImaged(keys=["seg"]),
-                #ToNumpyd(keys=["seg"]),
-                #Lambdad(keys=["seg"], func=lambda x: np.moveaxis(x, 0, -1)),
+                LoadImaged(keys=["seg"], reader=NrrdReader()),
                 MaskIntensityd(keys=["image"], mask_key="seg"),
                 AddChanneld(keys=["image"]),
                 ScaleIntensityd(keys=["image"]),
@@ -156,12 +153,12 @@ class TrainingWorkflow():
         # Perform data checks
         """check_data = {'image': np.load(train_files[0]['image']), 'label': train_files[0]['label']}
         print(check_data["image"].shape, check_data["label"])"""
-        """check_data = monai.utils.misc.first(train_loader)
+        check_data = monai.utils.misc.first(train_loader)
         #print(check_data["image"].shape, check_data["label"])
         multi_slice_viewer(check_data["image"][0, 0, :, :, :])
-        plot.show()"""
+        plot.show()
 
-        #exit()
+        exit()
         # 5. Prepare model
         model = ModelCT().to(device)
 
