@@ -11,14 +11,10 @@ import nrrd
 
 class NrrdReader(NumpyReader):
     """
-    Load NPY or NPZ format data based on Numpy library, they can be arrays or pickled objects.
-    A typical usage is to load the `mask` data for classification task.
-    It can load part of the npz file with specified `npz_keys`.
+    Load NRRD format data based on pynrrd library.
     Args:
-        npz_keys: if loading npz file, only load the specified keys, if None, load all the items.
-            stack the loaded items together to construct a new first dimension.
-        kwargs: additional args for `numpy.load` API except `allow_pickle`. more details about available args:
-            https://numpy.org/doc/stable/reference/generated/numpy.load.html
+        kwargs: additional args for `nrrd.read` API. more details about available args:
+            https://pynrrd.readthedocs.io/en/latest/user-guide.html#reading-nrrd-files
     """
 
     def __init__(self, **kwargs):
@@ -27,7 +23,7 @@ class NrrdReader(NumpyReader):
 
     def verify_suffix(self, filename: Union[Sequence[str], str]) -> bool:
         """
-        Verify whether the specified file or files format is supported by Numpy reader.
+        Verify whether the specified file or files format is supported by Nrrd reader.
         Args:
             filename: file name or a list of file names to read.
                 if a list of files, verify all the suffixes.
@@ -41,9 +37,9 @@ class NrrdReader(NumpyReader):
         Note that the returned object is Numpy array or list of Numpy arrays.
         Args:
             data: file name or a list of file names to read.
-            kwargs: additional args for `numpy.load` API except `allow_pickle`, will override `self.kwargs` for existing keys.
+            kwargs: additional args for `nrrd.read` API will override `self.kwargs` for existing keys.
                 More details about available args:
-                https://numpy.org/doc/stable/reference/generated/numpy.load.html
+                https://pynrrd.readthedocs.io/en/latest/user-guide.html#reading-nrrd-files
         """
         img_: List[Nifti1Image] = []
 
