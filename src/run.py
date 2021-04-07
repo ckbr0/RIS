@@ -1,14 +1,21 @@
 #!/usr/bin/python3 -u
 
+import sys
 import os
 import glob
+import argparse
 
 from sklearn.model_selection import train_test_split
 
 from utils import get_data_from_info
 from train_workflow import TrainingWorkflow
 
-if __name__ == '__main__':
+def main():
+    parser = argparse.ArgumentParser(description='RIS.')
+    parser.add_argument("--data_check", help="run data check", action="store_true")
+    args = parser.parse_args()
+    if args.data_check:
+        print("running data check...")
 
     # Osnovne datoteke
     src_dir = os.path.dirname(os.path.abspath(__file__))
@@ -51,10 +58,16 @@ if __name__ == '__main__':
     hyperparameters['weight_decay'] = 0.0001 # weight decay
     hyperparameters['total_epoch'] = 6 # total number of epochs
     hyperparameters['multiplicator'] = 0.95 # each epoch learning rate is decreased on LR*multiplicator
+    hyperparameters['batch_size'] = 8
     hyperparameters['validation_epoch'] = 1 # Only perform validations if current epoch is greater or equal validation_epoch
     hyperparameters['validation_interval'] = 1
+    hyperparameters['H'] = 1500
+    hyperparameters['L'] = -600
 
-    training = TrainingWorkflow(data_dir, hackathon_dir, out_dir, cache_dir, 'model_ct')
+    training = TrainingWorkflow(data_dir, hackathon_dir, out_dir, cache_dir, 'model_ct', num_workers=2, cuda=False)
 
-    training.train(train_info, valid_info, hyperparameters)
+    training.train(train_info, valid_info, hyperparameters, run_data_check=args.data_check)
     
+if __name__ == '__main__':
+    main()
+

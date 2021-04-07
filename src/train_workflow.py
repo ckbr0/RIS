@@ -75,7 +75,16 @@ from nrrd_reader import NrrdReader
 
 class TrainingWorkflow():
 
-    def __init__(self, data_dir, hackathon_dir, out_dir, cache_dir, unique_name):
+    def __init__(
+        self,
+        data_dir,
+        hackathon_dir,
+        out_dir,
+        cache_dir,
+        unique_name,
+        num_workers=2,
+        cuda=None,
+    ):
         self.data_dir = data_dir
         self.hackathon_dir = hackathon_dir
         self.out_dir = out_dir
@@ -84,10 +93,18 @@ class TrainingWorkflow():
         self.seg_data_dir = os.path.join(hackathon_dir, 'segmentations', 'train')
         self.cache_dir = cache_dir
         self.persistent_dataset_dir = os.path.join(cache_dir, 'persistent')
+        self.num_workers = num_workers
+
+        # Create torch device
+        if not cuda:
+            self.pin_memory = False
+            self.device = torch.device('cpu')
+        else:
+            self.pin_memory = True
+            self.device = torch.device('cuda')
+
   
-    def transformations(self):
-        H = 1500
-        L = -600
+    def transformations(self, H, L):
         lower = L - (H / 2)
         upper = L + (H / 2)
 
@@ -113,14 +130,14 @@ class TrainingWorkflow():
                 
                 # Normalizacija na CT okno
                 # https://radiopaedia.org/articles/windowing-ct
-                RandCTWindowd(keys=["image"], prob=0.2, width=(H-50, H+50), level=(L-50, L+50)),
+                RandCTWindowd(keys=["image"], prob=1.0, width=(H-100, H+100), level=(L-50, L+50)),
 
                 # Mogoče zanimiva
-                RandAxisFlipd(keys=["image"], prob=0.2),
+                RandAxisFlipd(keys=["image"], prob=0.1),
 
                 RandAffined(
                     keys=["image"],
-                    prob=0.2,
+                    prob=0.25,
                     rotate_range=(0, 0, np.pi/8),
                     shear_range=(0.1, 0.1, 0.0),
                     translate_range=(10, 10, 0),
@@ -148,34 +165,30 @@ class TrainingWorkflow():
         
         return train_transforms, valid_transforms
 
-    def train(self, train_info, valid_info, hyperparameters, cuda=None): 
+    def train(self, train_info, valid_info, hyperparameters, run_data_check=False): 
 
         logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-        start_dt = datetime.datetime.now()
-        start_dt_string = start_dt.strftime('%d/%m/%Y %H:%M:%S')
-        print(f'Training started: {start_dt_string}')
+        if not run_data_check:
+            start_dt = datetime.datetime.now()
+            start_dt_string = start_dt.strftime('%d/%m/%Y %H:%M:%S')
+            print(f'Training started: {start_dt_string}')
 
-        # 0. Create torch device
-        if not cuda:
-            pin_memory = False
-            device = torch.device('cpu')
-        else:
-            pin_memory = True
-            device = torch.device('cuda')
-
-        # 1. Create folders to save the model
-        timedate_info= str(datetime.datetime.now()).split(' ')[0] + '_' + str(datetime.datetime.now().strftime("%H:%M:%S")).replace(':', '-')
-        path_to_model = os.path.join(self.out_dir, 'trained_models', self.unique_name +  '_' + timedate_info)
-        os.mkdir(path_to_model)
+            # 1. Create folders to save the model
+            timedate_info= str(datetime.datetime.now()).split(' ')[0] + '_' + str(datetime.datetime.now().strftime("%H:%M:%S")).replace(':', '-')
+            path_to_model = os.path.join(self.out_dir, 'trained_models', self.unique_name +  '_' + timedate_info)
+            os.mkdir(path_to_model)
 
         # 2. Load hyperparameters
         learning_rate = hyperparameters['learning_rate']
         weight_decay = hyperparameters['weight_decay']
         total_epoch = hyperparameters['total_epoch']
         multiplicator = hyperparameters['multiplicator']
+        batch_size = hyperparameters['batch_size']
         validation_epoch = hyperparameters['validation_epoch']
         validation_interval = hyperparameters['validation_interval']
+        H = hyperparameters['H']
+        L = hyperparameters['L']
 
         # 3. Consider class imbalance
         negative, positive = 0, 0
@@ -185,15 +198,15 @@ class TrainingWorkflow():
             elif int(label) == 1:
                 positive += 1
         
-        pos_weight = torch.Tensor([(negative/positive)]).to(device)
+        pos_weight = torch.Tensor([(negative/positive)]).to(self.device)
 
         # 4. Create train and validation loaders, batch_size = 10 for validation loader (10 central slices)
 
         train_data = get_data_from_info(self.image_data_dir, self.seg_data_dir, train_info)
         valid_data = get_data_from_info(self.image_data_dir, self.seg_data_dir, valid_info)
 
-        set_determinism(seed=0)
-        train_trans, valid_trans = self.transformations()
+        #set_determinism(seed=0)
+        train_trans, valid_trans = self.transformations(H, L)
         train_dataset = PersistentDataset(
             data=train_data[:],
             transform=train_trans,
@@ -207,38 +220,38 @@ class TrainingWorkflow():
 
         train_loader = DataLoader(
             train_dataset,
-            batch_size=8,
+            batch_size=batch_size,
             shuffle=True,
-            pin_memory=pin_memory,
+            pin_memory=self.pin_memory,
             num_workers=2,
             collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT)
         )
         valid_loader = DataLoader(
             valid_dataset,
-            batch_size=8,
+            batch_size=batch_size,
             shuffle=True,
-            pin_memory=pin_memory,
+            pin_memory=self.pin_memory,
             num_workers=2,
             collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT))
 
         # Perform data checks
-        """check_data = {'image': np.load(train_files[0]['image']), 'label': train_files[0]['label']}
-        print(check_data["image"].shape, check_data["label"])"""
-        """check_data = monai.utils.misc.first(train_loader)
-        print(check_data["image"].shape, check_data["label"])
-        multi_slice_viewer(check_data["image"][0, 0, :, :, :])
-        plot.show()
-        multi_slice_viewer(check_data["image"][2, 0, :, :, :])
-        plot.show()
-        multi_slice_viewer(check_data["image"][4, 0, :, :, :])
-        plot.show()
-        multi_slice_viewer(check_data["image"][6, 0, :, :, :])
-        plot.show()"""
+        if run_data_check:
+            check_data = monai.utils.misc.first(train_loader)
+            print(check_data["image"].shape, check_data["label"])
+            multi_slice_viewer(check_data["image"][0, 0, :, :, :])
+            plot.show()
+            multi_slice_viewer(check_data["image"][2, 0, :, :, :])
+            plot.show()
+            multi_slice_viewer(check_data["image"][4, 0, :, :, :])
+            plot.show()
+            multi_slice_viewer(check_data["image"][6, 0, :, :, :])
+            plot.show()
+            exit()
 
-        #exit()
         # 5. Prepare model
-        model = ModelCT().to(device)
-        print('9')
+
+        model = ModelCT().to(self.device)
+        
         # 6. Define loss function, optimizer and scheduler
         loss_function = torch.nn.BCEWithLogitsLoss(pos_weight) # pos_weight for class imbalance
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -267,7 +280,7 @@ class TrainingWorkflow():
         # 8. Create validatior
         discrete = AsDiscrete(threshold_values=True)
         evaluator = SupervisedEvaluator(
-            device=device,
+            device=self.device,
             val_data_loader=valid_loader,
             network=model,
             post_transform=valid_post_transforms,
@@ -308,7 +321,7 @@ class TrainingWorkflow():
         ]
 
         trainer = SupervisedTrainer(
-            device=device,
+            device=self.device,
             max_epochs=total_epoch,
             train_data_loader=train_loader,
             network=model,
