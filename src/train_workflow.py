@@ -113,14 +113,14 @@ class TrainingWorkflow():
                 
                 # Normalizacija na CT okno
                 # https://radiopaedia.org/articles/windowing-ct
-                RandCTWindowd(keys=["image"], prob=0.2, width=(H-50, H+50), level=(L-50, L+50)),
+                RandCTWindowd(keys=["image"], prob=1.0, width=(H-100, H+100), level=(L-50, L+50)),
 
                 # Mogoče zanimiva
-                RandAxisFlipd(keys=["image"], prob=0.2),
+                RandAxisFlipd(keys=["image"], prob=0.1),
 
                 RandAffined(
                     keys=["image"],
-                    prob=0.2,
+                    prob=0.25,
                     rotate_range=(0, 0, np.pi/8),
                     shear_range=(0.1, 0.1, 0.0),
                     translate_range=(10, 10, 0),
@@ -192,7 +192,7 @@ class TrainingWorkflow():
         train_data = get_data_from_info(self.image_data_dir, self.seg_data_dir, train_info)
         valid_data = get_data_from_info(self.image_data_dir, self.seg_data_dir, valid_info)
 
-        set_determinism(seed=0)
+        #set_determinism(seed=0)
         train_trans, valid_trans = self.transformations()
         train_dataset = PersistentDataset(
             data=train_data[:],
@@ -224,7 +224,7 @@ class TrainingWorkflow():
         # Perform data checks
         """check_data = {'image': np.load(train_files[0]['image']), 'label': train_files[0]['label']}
         print(check_data["image"].shape, check_data["label"])"""
-        """check_data = monai.utils.misc.first(train_loader)
+        check_data = monai.utils.misc.first(train_loader)
         print(check_data["image"].shape, check_data["label"])
         multi_slice_viewer(check_data["image"][0, 0, :, :, :])
         plot.show()
@@ -233,9 +233,9 @@ class TrainingWorkflow():
         multi_slice_viewer(check_data["image"][4, 0, :, :, :])
         plot.show()
         multi_slice_viewer(check_data["image"][6, 0, :, :, :])
-        plot.show()"""
+        plot.show()
+        exit()
 
-        #exit()
         # 5. Prepare model
         model = ModelCT().to(device)
 
