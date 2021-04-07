@@ -1,9 +1,11 @@
-from typing import Any, Dict, Hashable, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Hashable, Mapping, Optional, Tuple, Union
 import numpy as np
 from monai.transforms import NormalizeIntensityd
+from monai.transforms.transform import MapTransform, RandomizableTransform
 from monai.transforms.intensity.array import NormalizeIntensity
 from monai.config import DtypeLike, KeysCollection
-from monai.transforms.transform import MapTransform, RandomizableTransform
+from monai.utils import NumpyPadMode
+from monai.utils.enums import Method
 
 def _calc_grey_levels(width, level):
     lower = level - (width / 2)
@@ -17,7 +19,7 @@ class CTWindowd(NormalizeIntensityd):
         keys: KeysCollection,
         width: int = 1500,
         level: int = -600,
-        nonzero: bool = True,
+        nonzero: bool = False,
         dtype: DtypeLike = np.float32,
         allow_missing_keys: bool = False,
     ) -> None:
@@ -77,3 +79,4 @@ class RandCTWindowd(RandomizableTransform, MapTransform):
         for key in self.key_iterator(d):
             d[key] = normalizer(d[key])
         return d
+
