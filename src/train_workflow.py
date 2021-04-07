@@ -9,7 +9,6 @@ from matplotlib.widgets import Slider
 
 import torch
 from torch.utils import tensorboard
-from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from ignite.metrics import Accuracy
 import monai
@@ -28,12 +27,15 @@ from monai.handlers import (
     MetricLogger,
 )
 from monai.data import (
+    DataLoader,
     CacheDataset,
     Dataset,
     PersistentDataset,
     list_data_collate,
 )
 from monai.transforms import (
+    Identityd,
+    BoundingRectd,
     AddChanneld,
     AsDiscreted,
     AsDiscrete,
@@ -59,8 +61,11 @@ from monai.transforms import (
     Lambdad,
     ToNumpyd,
 )
+#from monai.transforms.croppad.batch import PadListDataCollate
+from monai.transforms.croppad.batch import PadListDataCollate
 from monai.metrics import compute_roc_auc
-from monai.utils import set_determinism
+from monai.utils import NumpyPadMode, set_determinism
+from monai.utils.enums import Method
 
 from model import ModelCT
 from utils import get_data_from_info, multi_slice_viewer
@@ -93,51 +98,36 @@ class TrainingWorkflow():
                 AddChanneld(keys=["image"]),
                 LoadImaged(keys=["seg"], reader=NrrdReader()),
                 AddChanneld(keys=["seg"]),
-               
+
                 # Segmentacija
                 MaskIntensityd(keys=["image"], mask_key="seg"),
 
                 # Crop foreground based on seg image.
-                CropForegroundd(keys=["image"], source_key="seg", margin=(10, 10, 10)),
-
-                # Normalizacija na CT okno
-                # https://radiopaedia.org/articles/windowing-ct
-                #CTWindowd(keys=["image"], width=H, level=L),
-                #NormalizeIntensityd(
-                #    keys=["image"],
-                #    subtrahend=lower,
-                #    divisor=(upper-lower),
-                #    nonzero=True),
+                CropForegroundd(keys=["image"], source_key="seg", margin=(50, 50, 50)),
             ]
         )
 
         train_transforms = Compose(
             [
-                basic_transforms, 
-              
+                basic_transforms,
+                
                 # Normalizacija na CT okno
                 # https://radiopaedia.org/articles/windowing-ct
-                RandCTWindowd(keys=["image"], prob=1.0, width=(1450, 1550), level=(-550, -650)),
-                
-                #RandRotated(
-                #    keys=["image"],
-                #    range_z=np.pi/10,
-                #    prob=0.2,
-                #    keep_size=True,
-                #    padding_mode="zeros"),
-                #RandRotated(keys=["image"], angle=(0, 0, np.pi/10), keep_size=False, padding_mode="zeros"),
-                #RandFlipd(keys=["image"], prob=1.0, spatial_axis=1),
+                RandCTWindowd(keys=["image"], prob=0.2, width=(H-50, H+50), level=(L-50, L+50)),
+
                 # Mogoče zanimiva
                 RandAxisFlipd(keys=["image"], prob=0.2),
-                
-                RandAffined(keys=["image"],
-                    prob=0.2,
-                    rotate_range=(0, 0, np.pi/10),
-                    shear_range=(0.2, 0.2, 0.2),
-                    translate_range=(10, 10, 10),
-                    scale_range=(0.3, 0.3, 0.0),
-                    padding_mode="zeros"),
 
+                RandAffined(
+                    keys=["image"],
+                    prob=0.2,
+                    rotate_range=(0, 0, np.pi/8),
+                    shear_range=(0.1, 0.1, 0.0),
+                    translate_range=(10, 10, 0),
+                    scale_range=(0.1, 0.1, 0.0),
+                    spatial_size=(-1, -1, -1),
+                    padding_mode="zeros"
+                ),
 
                 ToTensord(keys=["image"]),
             ]
@@ -204,18 +194,45 @@ class TrainingWorkflow():
 
         set_determinism(seed=0)
         train_trans, valid_trans = self.transformations()
-        train_dataset = PersistentDataset(data=train_data[:], transform=train_trans, cache_dir=self.persistent_dataset_dir)
-        valid_dataset = PersistentDataset(data=valid_data[:], transform=valid_trans, cache_dir=self.persistent_dataset_dir)
+        train_dataset = PersistentDataset(
+            data=train_data[:],
+            transform=train_trans,
+            cache_dir=self.persistent_dataset_dir
+        )
+        valid_dataset = PersistentDataset(
+            data=valid_data[:],
+            transform=valid_trans,
+            cache_dir=self.persistent_dataset_dir
+        )
 
-        train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, pin_memory=pin_memory, num_workers=2)
-        valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=True, pin_memory=pin_memory, num_workers=2)
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=8,
+            shuffle=True,
+            pin_memory=pin_memory,
+            num_workers=2,
+            collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT)
+        )
+        valid_loader = DataLoader(
+            valid_dataset,
+            batch_size=8,
+            shuffle=True,
+            pin_memory=pin_memory,
+            num_workers=2,
+            collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT))
 
         # Perform data checks
         """check_data = {'image': np.load(train_files[0]['image']), 'label': train_files[0]['label']}
         print(check_data["image"].shape, check_data["label"])"""
         """check_data = monai.utils.misc.first(train_loader)
-        #print(check_data["image"].shape, check_data["label"])
+        print(check_data["image"].shape, check_data["label"])
         multi_slice_viewer(check_data["image"][0, 0, :, :, :])
+        plot.show()
+        multi_slice_viewer(check_data["image"][2, 0, :, :, :])
+        plot.show()
+        multi_slice_viewer(check_data["image"][4, 0, :, :, :])
+        plot.show()
+        multi_slice_viewer(check_data["image"][6, 0, :, :, :])
         plot.show()"""
 
         #exit()
