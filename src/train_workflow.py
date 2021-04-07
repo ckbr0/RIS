@@ -41,10 +41,17 @@ from monai.transforms import (
     Compose,
     CropForegroundd,
     LoadImaged,
+    Rotated,
+    RandRotated,
+    RandAffined,
+    RandFlipd,
+    RandAxisFlipd,
     SqueezeDimd,
     Orientationd,
     RandCropByPosNegLabeld,
     ScaleIntensityd,
+    NormalizeIntensityd,
+    ThresholdIntensityd,
     ScaleIntensityRanged,
     Spacingd,
     ToTensord,
@@ -58,6 +65,8 @@ from monai.utils import set_determinism
 from model import ModelCT
 from utils import get_data_from_info, multi_slice_viewer
 from validation_handler import ValidationHandlerCT
+from transforms import CTWindowd, RandCTWindowd
+from nrrd_reader import NrrdReader
 
 class TrainingWorkflow():
 
@@ -70,17 +79,66 @@ class TrainingWorkflow():
         self.seg_data_dir = os.path.join(hackathon_dir, 'segmentations', 'train')
         self.cache_dir = cache_dir
         self.persistent_dataset_dir = os.path.join(cache_dir, 'persistent')
-   
+  
     def transformations(self):
+        H = 1500
+        L = -600
+        lower = L - (H / 2)
+        upper = L + (H / 2)
+
+        basic_transforms = Compose(
+            [
+                # Load image and seg
+                LoadImaged(keys=["image"]),
+                AddChanneld(keys=["image"]),
+                LoadImaged(keys=["seg"], reader=NrrdReader()),
+                AddChanneld(keys=["seg"]),
+               
+                # Segmentacija
+                MaskIntensityd(keys=["image"], mask_key="seg"),
+
+                # Crop foreground based on seg image.
+                CropForegroundd(keys=["image"], source_key="seg", margin=(10, 10, 10)),
+
+                # Normalizacija na CT okno
+                # https://radiopaedia.org/articles/windowing-ct
+                #CTWindowd(keys=["image"], width=H, level=L),
+                #NormalizeIntensityd(
+                #    keys=["image"],
+                #    subtrahend=lower,
+                #    divisor=(upper-lower),
+                #    nonzero=True),
+            ]
+        )
+
         train_transforms = Compose(
             [
-                LoadImaged(keys=["image"]),
-                #LoadImaged(keys=["seg"]),
-                #ToNumpyd(keys=["seg"]),
-                #Lambdad(keys=["seg"], func=lambda x: np.moveaxis(x, 0, -1)),
-                MaskIntensityd(keys=["image"], mask_key="seg"),
-                AddChanneld(keys=["image"]),
-                ScaleIntensityd(keys=["image"]),
+                basic_transforms, 
+              
+                # Normalizacija na CT okno
+                # https://radiopaedia.org/articles/windowing-ct
+                RandCTWindowd(keys=["image"], prob=1.0, width=(1450, 1550), level=(-550, -650)),
+                
+                #RandRotated(
+                #    keys=["image"],
+                #    range_z=np.pi/10,
+                #    prob=0.2,
+                #    keep_size=True,
+                #    padding_mode="zeros"),
+                #RandRotated(keys=["image"], angle=(0, 0, np.pi/10), keep_size=False, padding_mode="zeros"),
+                #RandFlipd(keys=["image"], prob=1.0, spatial_axis=1),
+                # Mogoče zanimiva
+                RandAxisFlipd(keys=["image"], prob=0.2),
+                
+                RandAffined(keys=["image"],
+                    prob=0.2,
+                    rotate_range=(0, 0, np.pi/10),
+                    shear_range=(0.2, 0.2, 0.2),
+                    translate_range=(10, 10, 10),
+                    scale_range=(0.3, 0.3, 0.0),
+                    padding_mode="zeros"),
+
+
                 ToTensord(keys=["image"]),
             ]
         )
@@ -88,13 +146,12 @@ class TrainingWorkflow():
         # NOTE: No random transforms in the validation data
         valid_transforms = Compose(
             [
-                LoadImaged(keys=["image"]),
-                #LoadImaged(keys=["seg"]),
-                #ToNumpyd(keys=["seg"]),
-                #Lambdad(keys=["seg"], func=lambda x: np.moveaxis(x, 0, -1)),
-                MaskIntensityd(keys=["image"], mask_key="seg"),
-                AddChanneld(keys=["image"]),
-                ScaleIntensityd(keys=["image"]),
+                basic_transforms,
+                
+                # Normalizacija na CT okno
+                # https://radiopaedia.org/articles/windowing-ct
+                CTWindowd(keys=["image"], width=H, level=L),
+
                 ToTensord(keys=["image"]),
             ]
         )
