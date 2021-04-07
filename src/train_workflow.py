@@ -204,7 +204,7 @@ class TrainingWorkflow():
 
         train_data = get_data_from_info(self.image_data_dir, self.seg_data_dir, train_info)
         valid_data = get_data_from_info(self.image_data_dir, self.seg_data_dir, valid_info)
-
+        print(self.persistent_dataset_dir)
         #set_determinism(seed=0)
         train_trans, valid_trans = self.transformations(H, L)
         train_dataset = PersistentDataset(
@@ -223,7 +223,7 @@ class TrainingWorkflow():
             batch_size=batch_size,
             shuffle=True,
             pin_memory=self.pin_memory,
-            num_workers=2,
+            num_workers=self.num_workers,
             collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT)
         )
         valid_loader = DataLoader(
@@ -231,7 +231,7 @@ class TrainingWorkflow():
             batch_size=batch_size,
             shuffle=True,
             pin_memory=self.pin_memory,
-            num_workers=2,
+            num_workers=self.num_workers,
             collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT))
 
         # Perform data checks
@@ -251,7 +251,7 @@ class TrainingWorkflow():
         # 5. Prepare model
 
         model = ModelCT().to(self.device)
-        
+
         # 6. Define loss function, optimizer and scheduler
         loss_function = torch.nn.BCEWithLogitsLoss(pos_weight) # pos_weight for class imbalance
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)

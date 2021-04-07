@@ -64,7 +64,7 @@ def main():
     hyperparameters['H'] = 1500
     hyperparameters['L'] = -600
 
-    training = TrainingWorkflow(data_dir, hackathon_dir, out_dir, cache_dir, 'model_ct', num_workers=2, cuda=False)
+    training = TrainingWorkflow(data_dir, hackathon_dir, out_dir, cache_dir, 'model_ct', num_workers=0, cuda=False)
 
     training.train(train_info, valid_info, hyperparameters, run_data_check=args.data_check)
     
