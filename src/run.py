@@ -10,12 +10,15 @@ from sklearn.model_selection import train_test_split
 from utils import get_data_from_info
 from train_workflow import TrainingWorkflow
 
-def main():
-    parser = argparse.ArgumentParser(description='RIS.')
-    parser.add_argument("--data_check", help="run data check", action="store_true")
-    args = parser.parse_args()
-    if args.data_check:
-        print("running data check...")
+def main(parse_args=False):
+    data_check = False
+    if parse_args:
+        parser = argparse.ArgumentParser(description='RIS.')
+        parser.add_argument("--data_check", help="run data check", action="store_true")
+        args = parser.parse_args()
+        if args.data_check:
+            data_check = True
+            print("running data check...")
 
     # Osnovne datoteke
     src_dir = os.path.dirname(os.path.abspath(__file__))
@@ -71,8 +74,8 @@ def main():
 
     training = TrainingWorkflow(data_dir, hackathon_dir, out_dir, cache_dir, 'model_ct', num_workers=num_workers, cuda=False)
 
-    training.train(train_info, valid_info, hyperparameters, run_data_check=args.data_check)
+    training.train(train_info, valid_info, hyperparameters, run_data_check=data_check)
     
 if __name__ == '__main__':
-    main()
+    main(True)
 
