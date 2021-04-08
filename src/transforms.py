@@ -1,11 +1,12 @@
 from typing import Any, Dict, Hashable, Mapping, Optional, Tuple, Union
 import numpy as np
-from monai.transforms import NormalizeIntensityd
+from monai.transforms import NormalizeIntensityd, MaskIntensityd
 from monai.transforms.transform import MapTransform, RandomizableTransform
 from monai.transforms.intensity.array import NormalizeIntensity
 from monai.config import DtypeLike, KeysCollection
 from monai.utils import NumpyPadMode
 from monai.utils.enums import Method
+import nrrd
 
 def _calc_grey_levels(width, level):
     lower = level - (width / 2)
@@ -80,3 +81,15 @@ class RandCTWindowd(RandomizableTransform, MapTransform):
             d[key] = normalizer(d[key])
         return d
 
+class CTSegmentation(MaskIntensityd):
+
+    def __init__(self, keys: KeysCollection, mask_key='seg', allow_missing_keys=False) -> None:
+        super().__init__(keys, mask_data=None, mask_key=mask_key, allow_missing_keys=allow_missing_keys)
+
+    def __call__(self, data: Mapping[Hashable, np.ndarray]) -> Dict[Hashable, np.ndarray]:
+        d = dict(data)
+        seg_data, _ = nrrd.read(d[self.mask_key])
+        for key in self.key_iterator(d):
+            d[key] = self.converter(d[key], seg_data)
+        return d
+        

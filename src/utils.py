@@ -23,7 +23,7 @@ def get_data_from_info(path_to_images, path_to_segs, info):
         image = os.path.join(path_to_images, image_name)
         seg = os.path.join(path_to_segs, seg_name)
 
-        data.append({'image': image, 'label': np.float32([int(label)]), 'seg': seg, 'seg_transforms': []})
+        data.append({'image': image, 'label': np.float32([int(label)]), 'seg': seg})
     return data
 
 def compute_acc(x, y):

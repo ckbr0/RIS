@@ -70,7 +70,7 @@ from monai.utils.enums import Method
 from model import ModelCT
 from utils import get_data_from_info, multi_slice_viewer
 from validation_handler import ValidationHandlerCT
-from transforms import CTWindowd, RandCTWindowd
+from transforms import CTWindowd, RandCTWindowd, CTSegmentation
 from nrrd_reader import NrrdReader
 
 class TrainingWorkflow():
@@ -110,24 +110,23 @@ class TrainingWorkflow():
 
         basic_transforms = Compose(
             [
-                # Load image and seg
+                # Load image
                 LoadImaged(keys=["image"]),
-                AddChanneld(keys=["image"]),
-                LoadImaged(keys=["seg"], reader=NrrdReader()),
-                AddChanneld(keys=["seg"]),
 
                 # Segmentacija
-                MaskIntensityd(keys=["image"], mask_key="seg"),
+                CTSegmentation(keys=["image"]),
+                
+                AddChanneld(keys=["image"]),
 
                 # Crop foreground based on seg image.
-                CropForegroundd(keys=["image"], source_key="seg", margin=(50, 50, 50)),
+                CropForegroundd(keys=["image"], source_key="image", margin=(50, 50, 0)),
             ]
         )
 
         train_transforms = Compose(
             [
                 basic_transforms,
-                
+
                 # Normalizacija na CT okno
                 # https://radiopaedia.org/articles/windowing-ct
                 RandCTWindowd(keys=["image"], prob=1.0, width=(H-100, H+100), level=(L-50, L+50)),
@@ -148,20 +147,20 @@ class TrainingWorkflow():
 
                 ToTensord(keys=["image"]),
             ]
-        )
+        ).flatten()
 
         # NOTE: No random transforms in the validation data
         valid_transforms = Compose(
             [
                 basic_transforms,
-                
+
                 # Normalizacija na CT okno
                 # https://radiopaedia.org/articles/windowing-ct
                 CTWindowd(keys=["image"], width=H, level=L),
 
                 ToTensord(keys=["image"]),
             ]
-        )
+        ).flatten()
         
         return train_transforms, valid_transforms
 
@@ -204,8 +203,8 @@ class TrainingWorkflow():
 
         train_data = get_data_from_info(self.image_data_dir, self.seg_data_dir, train_info)
         valid_data = get_data_from_info(self.image_data_dir, self.seg_data_dir, valid_info)
-        print(self.persistent_dataset_dir)
-        #set_determinism(seed=0)
+        
+        set_determinism(seed=0)
         train_trans, valid_trans = self.transformations(H, L)
         train_dataset = PersistentDataset(
             data=train_data[:],
@@ -249,7 +248,6 @@ class TrainingWorkflow():
             exit()
 
         # 5. Prepare model
-
         model = ModelCT().to(self.device)
 
         # 6. Define loss function, optimizer and scheduler
