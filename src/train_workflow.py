@@ -98,9 +98,11 @@ class TrainingWorkflow():
         # Create torch device
         if not cuda:
             self.pin_memory = False
+            self.amp = False
             self.device = torch.device('cpu')
         else:
             self.pin_memory = True
+            self.amp = True
             self.device = torch.device('cuda')
 
   
@@ -281,7 +283,7 @@ class TrainingWorkflow():
             key_val_metric={"Valid_AUC": ROCAUC(output_transform=lambda x: (x["pred"], x["label"]))},
             additional_metrics={"Valid_Accuracy": Accuracy(output_transform=lambda x: (discrete(x["pred"]), x["label"]))},
             val_handlers=valid_handlers,
-            amp=False,
+            amp=self.amp,
         )
         # 9. Create trainer
 
@@ -321,7 +323,7 @@ class TrainingWorkflow():
             loss_function=loss_function,
             post_transform=train_post_transforms,
             train_handlers=train_handlers,
-            amp=False,
+            amp=self.amp,
         )
         # 10. Run trainer
         trainer.run()

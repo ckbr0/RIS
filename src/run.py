@@ -58,13 +58,18 @@ def main():
     hyperparameters['weight_decay'] = 0.0001 # weight decay
     hyperparameters['total_epoch'] = 6 # total number of epochs
     hyperparameters['multiplicator'] = 0.95 # each epoch learning rate is decreased on LR*multiplicator
-    hyperparameters['batch_size'] = 8
+    hyperparameters['batch_size'] = 1
     hyperparameters['validation_epoch'] = 1 # Only perform validations if current epoch is greater or equal validation_epoch
     hyperparameters['validation_interval'] = 1
     hyperparameters['H'] = 1500
     hyperparameters['L'] = -600
 
-    training = TrainingWorkflow(data_dir, hackathon_dir, out_dir, cache_dir, 'model_ct', num_workers=0, cuda=False)
+    if os.name == 'nt':
+        num_workers = 0
+    else:
+        num_workers = 1
+
+    training = TrainingWorkflow(data_dir, hackathon_dir, out_dir, cache_dir, 'model_ct', num_workers=num_workers, cuda=False)
 
     training.train(train_info, valid_info, hyperparameters, run_data_check=args.data_check)
     
