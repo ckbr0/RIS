@@ -283,8 +283,6 @@ class Training():
         nb_batches = len(train_loader)
         epoch_len = len(train_dataset) // train_loader.batch_size
         
-        writer = SummaryWriter(log_dir='tensorboard')
-
         # 8. Run training
         for epoch in range(total_epoch):
             start = time.time()
