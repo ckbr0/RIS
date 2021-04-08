@@ -1,6 +1,6 @@
 import sys
 import os
-import datetime
+import time, datetime
 import logging
 
 import numpy as np
@@ -68,12 +68,12 @@ from monai.utils import NumpyPadMode, set_determinism
 from monai.utils.enums import Method
 
 from model import ModelCT
-from utils import get_data_from_info, multi_slice_viewer
+from utils import get_data_from_info, compute_acc, multi_slice_viewer
 from validation_handler import ValidationHandlerCT
 from transforms import CTWindowd, RandCTWindowd, CTSegmentation
 from nrrd_reader import NrrdReader
 
-class TrainingWorkflow():
+class Training():
 
     def __init__(
         self,
@@ -104,8 +104,7 @@ class TrainingWorkflow():
             self.pin_memory = True
             self.amp = True
             self.device = torch.device('cuda')
-
-  
+   
     def transformations(self, H, L):
         lower = L - (H / 2)
         upper = L + (H / 2)
@@ -166,7 +165,7 @@ class TrainingWorkflow():
         
         return train_transforms, valid_transforms
 
-    def train(self, train_info, valid_info, hyperparameters, run_data_check=False): 
+    def train(self, train_info, valid_info, hyperparameters, run_data_check=False):
 
         logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
@@ -271,73 +270,93 @@ class TrainingWorkflow():
                 Activationsd(keys="pred", sigmoid=True),
             ]
         )
-        valid_handlers = [
-            StatsHandler(output_transform=lambda x: None),
-            TensorBoardStatsHandler(summary_writer=writer, output_transform=lambda x: None),
-            CheckpointSaver(
-                save_dir=path_to_model,
-                save_dict={"model": model},
-                save_key_metric=True),
-            MetricsSaver(save_dir=path_to_model, metrics=['Valid_AUC', 'Valid_ACC']),
-        ]
-        # 8. Create validatior
         discrete = AsDiscrete(threshold_values=True)
-        evaluator = SupervisedEvaluator(
-            device=self.device,
-            val_data_loader=valid_loader,
-            network=model,
-            post_transform=valid_post_transforms,
-            key_val_metric={"Valid_AUC": ROCAUC(output_transform=lambda x: (x["pred"], x["label"]))},
-            additional_metrics={"Valid_Accuracy": Accuracy(output_transform=lambda x: (discrete(x["pred"]), x["label"]))},
-            val_handlers=valid_handlers,
-            amp=self.amp,
-        )
-        # 9. Create trainer
 
-        # Loss function does the last sigmoid, so we dont need it here.
-        train_post_transforms = Compose(
-            [
-                # Empty
-            ]
-        )
-        logger = MetricLogger(evaluator=evaluator)
-        train_handlers = [
-            logger,
-            LrScheduleHandler(lr_scheduler=scheduler, print_lr=True),
-            ValidationHandlerCT(
-                validator=evaluator,
-                start=validation_epoch,
-                interval=validation_interval,
-                epoch_level=True),
-            StatsHandler(tag_name="loss", output_transform=lambda x: x["loss"]),
-            TensorBoardStatsHandler(
-                summary_writer=writer,
-                tag_name="Train_Loss",
-                output_transform=lambda x: x["loss"]),
-            CheckpointSaver(
-                save_dir=path_to_model,
-                save_dict={"model": model, "opt": optimizer},
-                save_interval=1,
-                n_saved=1),
-        ]
+        # 7. Creat lists for tracking AUC and Losses during training
+        auc = 0
+        aucs = []
+        acc = 0
+        accs = []
+        losses = []
+        best_auc = -np.inf
+        best_epoch = -1
+        nb_batches = len(train_loader)
+        epoch_len = len(train_dataset) // train_loader.batch_size
+        
+        writer = SummaryWriter(log_dir='tensorboard')
 
-        trainer = SupervisedTrainer(
-            device=self.device,
-            max_epochs=total_epoch,
-            train_data_loader=train_loader,
-            network=model,
-            optimizer=optimizer,
-            loss_function=loss_function,
-            post_transform=train_post_transforms,
-            train_handlers=train_handlers,
-            amp=self.amp,
-        )
-        # 10. Run trainer
-        trainer.run()
-        # 11. Save results
-        np.save(path_to_model + '/AUCS.npy', np.array(logger.metrics['Valid_AUC']))
-        np.save(path_to_model + '/ACCS.npy', np.array(logger.metrics['Valid_ACC']))
-        np.save(path_to_model + '/LOSSES.npy', np.array(logger.loss))
+        # 8. Run training
+        for epoch in range(total_epoch):
+            start = time.time()
+            print('Epoch: %d/%d' % (epoch + 1, total_epoch))
+            running_loss = 0
+            step = 0
+            # A) Train model
+            model.train()  # put model in training mode
+            for train_item in train_loader:
+                # Extract data
+                inputs, labels = train_item['image'].to(self.device), train_item['label'].to(self.device)
+                # Forward pass
+                optimizer.zero_grad()
+                outputs = model(inputs)
+                loss = loss_function(outputs, labels)
+                # Backward pass
+                loss.backward()
+                optimizer.step()
+                # Track loss change
+                step += 1
+                running_loss += loss.item()
+                print(f"\tBatch: {step}/{epoch_len}, loss: {loss.item():.4f}")
+                writer.add_scalar("Loss", loss.item(), epoch_len * epoch + step)
+
+            # B) Validate model
+            if (epoch + 1) >= validation_epoch and (epoch + 1 - validation_epoch) % validation_interval == 0:
+
+                print("\tValidating...")
+
+                predictions = torch.tensor([], dtype=torch.float32, device=self.device)
+                trues = torch.tensor([], dtype=torch.int32)
+            
+                model.eval() # put model in eval mode
+                with torch.no_grad():
+                    for valid_item in valid_loader:
+                        inputs, labels = valid_item['image'].to(self.device), valid_item["label"].to(self.device)
+                        prediction = valid_post_transforms(model(inputs))
+                        predictions = torch.cat([predictions, prediction], dim=0)
+                        trues = torch.cat([trues, labels], dim=0)
+
+                acc = compute_acc(discrete(predictions), trues)
+                auc = compute_roc_auc(predictions, trues)
+
+            # C) Track changes, update LR, save best model
+            print(f"\tAUC: {auc}, ACC: {acc}, Average loss: {running_loss/nb_batches}, Time: {time.time()-start}")
+            writer.add_scalar("auc", auc, epoch + 1)
+            writer.add_scalar("acc", acc, epoch + 1)
+            
+            if (epoch >= total_epoch//2) and (auc > best_auc): # If over 1/2 of epochs and best AUC, save model as best model.
+                torch.save(model.state_dict(), os.path.join(path_to_model, '/BEST_model.pth'))
+                print("\tSaved new best metric model")
+                best_auc = auc
+                best_epoch = epoch+1
+            else:
+                pass
+            
+            aucs.append(auc)
+            accs.append(acc)
+
+            losses.append(running_loss/nb_batches)
+            writer.add_scalar("Average loss per epoch", running_loss/nb_batches, epoch+1)
+            
+            scheduler.step()
+            
+        np.save(path_to_model + '/AUCS.npy', np.array(aucs))
+        np.save(path_to_model + '/ACCS.npy', np.array(accs))
+        np.save(path_to_model + '/LOSSES.npy', np.array(losses))
         np.save(path_to_model + '/PARAMETERS.npy', np.array(hyperparameters))
-
-        return path_to_model
+        torch.save(model.state_dict(), path_to_model + '/LAST_model.pth')
+        
+        end_dt = datetime.datetime.now()
+        end_dt_string = end_dt.strftime('%d/%m/%Y %H:%M:%S')
+        print(f"Train completed: {end_dt_string}, best metric: {best_auc:.4f} at epoch {best_epoch}")
+       
+        return aucs, accs, losses, path_to_model

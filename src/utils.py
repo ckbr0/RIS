@@ -66,3 +66,9 @@ def next_slice(ax):
     volume = ax.volume
     ax.index = (ax.index + 1) % volume.shape[-1]
     ax.images[0].set_array(volume[ :, :, ax.index])
+
+def compute_acc(x, y):
+    l = len(x)
+    s = torch.eq(x, y).sum().item()
+
+    return s / l
