@@ -58,7 +58,7 @@ def main():
     hyperparameters['weight_decay'] = 0.0001 # weight decay
     hyperparameters['total_epoch'] = 6 # total number of epochs
     hyperparameters['multiplicator'] = 0.95 # each epoch learning rate is decreased on LR*multiplicator
-    hyperparameters['batch_size'] = 1
+    hyperparameters['batch_size'] = 2
     hyperparameters['validation_epoch'] = 1 # Only perform validations if current epoch is greater or equal validation_epoch
     hyperparameters['validation_interval'] = 1
     hyperparameters['H'] = 1500
