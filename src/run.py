@@ -73,7 +73,7 @@ def main(parse_args=False):
     else:
         num_workers = 0
 
-    training = Training(data_dir, hackathon_dir, out_dir, cache_dir, 'model_ct', num_workers=num_workers, cuda=True)
+    training = TrainingWorkflow(data_dir, hackathon_dir, out_dir, cache_dir, 'model_ct', num_workers=num_workers, cuda=False)
 
     training.train(train_info, valid_info, hyperparameters, run_data_check=data_check)
     

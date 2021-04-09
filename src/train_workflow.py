@@ -71,7 +71,7 @@ from model import ModelCT
 from utils import get_data_from_info, multi_slice_viewer
 from validation_handler import ValidationHandlerCT
 from transforms import CTWindowd, RandCTWindowd, CTSegmentation
-from nrrd_reader import NrrdReader
+from large_image_splitter import large_image_splitter
 
 class TrainingWorkflow():
 
@@ -205,7 +205,8 @@ class TrainingWorkflow():
 
         train_data = get_data_from_info(self.image_data_dir, self.seg_data_dir, train_info)
         valid_data = get_data_from_info(self.image_data_dir, self.seg_data_dir, valid_info)
-        
+        large_image_splitter(train_data, self.cache_dir)
+
         set_determinism(seed=100)
         train_trans, valid_trans = self.transformations(H, L)
         train_dataset = PersistentDataset(
@@ -240,19 +241,15 @@ class TrainingWorkflow():
             check_data = monai.utils.misc.first(train_loader)
             print(check_data["image"].shape, check_data["label"])
             multi_slice_viewer(check_data["image"][0, 0, :, :, :])
-            plot.show()
             multi_slice_viewer(check_data["image"][2, 0, :, :, :])
-            plot.show()
             multi_slice_viewer(check_data["image"][4, 0, :, :, :])
-            plot.show()
             multi_slice_viewer(check_data["image"][6, 0, :, :, :])
-            plot.show()
             exit()
 
         """c = 1
         for d in train_loader:
             img = d["image"]
-            print(c, "Size:", img.nelement()*img.element_size()/1024/1024, "shape:", img.shape)
+            print(c, "Size:", img.nelement()*img.element_size()/1024/1024, "MB", "shape:", img.shape)
             c += 1"""
 
         #exit()

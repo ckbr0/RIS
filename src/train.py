@@ -165,6 +165,7 @@ class Training():
         
         return train_transforms, valid_transforms
 
+
     def train(self, train_info, valid_info, hyperparameters, run_data_check=False):
 
         logging.basicConfig(stream=sys.stdout, level=logging.INFO)

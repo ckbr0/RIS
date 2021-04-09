@@ -6,6 +6,8 @@ from monai.transforms.intensity.array import NormalizeIntensity
 from monai.config import DtypeLike, KeysCollection
 from monai.utils import NumpyPadMode
 from monai.utils.enums import Method
+from monai.data import NumpyReader
+from nrrd_reader import NrrdReader
 import nrrd
 
 def _calc_grey_levels(width, level):
@@ -84,12 +86,25 @@ class RandCTWindowd(RandomizableTransform, MapTransform):
 class CTSegmentation(MaskIntensityd):
 
     def __init__(self, keys: KeysCollection, mask_key='seg', allow_missing_keys=False) -> None:
+        self.readers = [NumpyReader(), NrrdReader()]
         super().__init__(keys, mask_data=None, mask_key=mask_key, allow_missing_keys=allow_missing_keys)
 
     def __call__(self, data: Mapping[Hashable, np.ndarray]) -> Dict[Hashable, np.ndarray]:
         d = dict(data)
-        seg_data, _ = nrrd.read(d[self.mask_key])
-        for key in self.key_iterator(d):
-            d[key] = self.converter(d[key], seg_data)
+        seg_filename = d[self.mask_key]
+        
+        reader = None
+        for r in reversed(self.readers):
+                if r.verify_suffix(seg_filename):
+                    reader = r
+                    break
+
+        if reader is None:
+            raise RuntimeError(f"can not find suitable reader for this file: {seg_filename}.")
+        
+        seg = reader.read(seg_filename)
+        seg_array, _ = reader.get_data(seg)
+        #for key in self.key_iterator(d):
+        #    d[key] = self.converter(d[key], seg_array)
         return d
         

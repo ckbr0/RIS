@@ -47,6 +47,7 @@ def multi_slice_viewer(volume):
     ax.index = volume.shape[-1] // 2
     ax.imshow(volume[:, :, ax.index], cmap='gray')
     fig.canvas.mpl_connect('key_press_event', process_key)
+    plt.show()
 
 def process_key(event):
     fig = event.canvas.figure
