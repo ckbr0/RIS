@@ -1,7 +1,9 @@
-from typing import Any, Dict, Hashable, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, Hashable, Mapping, Optional, Tuple, Union, Sequence
+from monai.transforms.croppad.dictionary import SpatialCropd
 import numpy as np
-from monai.transforms import NormalizeIntensityd, MaskIntensityd
+from monai.transforms import NormalizeIntensityd, MaskIntensityd, SpatialCrop
 from monai.transforms.transform import MapTransform, RandomizableTransform
+from monai.transforms.inverse import InvertibleTransform
 from monai.transforms.intensity.array import NormalizeIntensity
 from monai.config import DtypeLike, KeysCollection
 from monai.utils import NumpyPadMode
@@ -104,7 +106,26 @@ class CTSegmentation(MaskIntensityd):
         
         seg = reader.read(seg_filename)
         seg_array, _ = reader.get_data(seg)
-        #for key in self.key_iterator(d):
-        #    d[key] = self.converter(d[key], seg_array)
+        for key in self.key_iterator(d):
+            d[key] = self.converter(d[key], seg_array)
         return d
-        
+
+class RelativeAsymmetricZCropd(MapTransform):
+
+    def __init__(self, keys: KeysCollection, relative_z_roi: Sequence[float], allow_missing_keys: bool = False) -> None:
+        self.relative_z_roi = relative_z_roi
+        super().__init__(keys, allow_missing_keys=allow_missing_keys)
+
+    def __call__(self, data: Mapping[Hashable, np.ndarray]) -> Dict[Hashable, np.ndarray]:
+        d = dict(data)
+
+        for key in self.key_iterator(d):
+            orig_size = d[key].shape[1:]
+            z_size = orig_size[2]
+            z_bottom = int(z_size * self.relative_z_roi[1])
+            z_top = z_size - int(z_size * self.relative_z_roi[0])
+            roi_start = np.array([0, 0, z_bottom])
+            roi_end = np.array([orig_size[0], orig_size[1], z_top])
+            cropper = SpatialCrop(roi_start=roi_start, roi_end=roi_end)
+            d[key] = cropper(d[key])
+        return d

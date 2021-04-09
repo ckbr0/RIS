@@ -42,6 +42,7 @@ from monai.transforms import (
     Activationsd,
     Compose,
     CropForegroundd,
+    CenterSpatialCropd,
     LoadImaged,
     Rotated,
     RandRotated,
@@ -66,11 +67,12 @@ from monai.transforms.croppad.batch import PadListDataCollate
 from monai.metrics import compute_roc_auc
 from monai.utils import NumpyPadMode, set_determinism
 from monai.utils.enums import Method
+import nrrd
 
 from model import ModelCT
 from utils import get_data_from_info, multi_slice_viewer
 from validation_handler import ValidationHandlerCT
-from transforms import CTWindowd, RandCTWindowd, CTSegmentation
+from transforms import CTWindowd, RandCTWindowd, CTSegmentation, RelativeAsymmetricZCropd
 from large_image_splitter import large_image_splitter
 
 class TrainingWorkflow():
@@ -121,7 +123,10 @@ class TrainingWorkflow():
                 AddChanneld(keys=["image"]),
 
                 # Crop foreground based on seg image.
-                CropForegroundd(keys=["image"], source_key="image", margin=(50, 50, 0)),
+                CropForegroundd(keys=["image"], source_key="image", margin=(30, 30, 0)),
+                
+                # Obreži sliko v Z smeri, relative_z_roi = ( % od spodaj, % od zgoraj)
+                RelativeAsymmetricZCropd(keys=["image"], relative_z_roi=(0.05, 0.15)),
             ]
         )
 
@@ -139,7 +144,7 @@ class TrainingWorkflow():
                 RandAffined(
                     keys=["image"],
                     prob=0.25,
-                    rotate_range=(0, 0, np.pi/8),
+                    rotate_range=(0, 0, np.pi/16),
                     shear_range=(0.1, 0.1, 0.0),
                     translate_range=(10, 10, 0),
                     scale_range=(0.1, 0.1, 0.0),
@@ -240,19 +245,22 @@ class TrainingWorkflow():
         if run_data_check:
             check_data = monai.utils.misc.first(train_loader)
             print(check_data["image"].shape, check_data["label"])
-            multi_slice_viewer(check_data["image"][0, 0, :, :, :])
-            multi_slice_viewer(check_data["image"][2, 0, :, :, :])
-            multi_slice_viewer(check_data["image"][4, 0, :, :, :])
-            multi_slice_viewer(check_data["image"][6, 0, :, :, :])
+            for i in range(batch_size):
+                multi_slice_viewer(check_data["image"][i, 0, :, :, :], check_data["image_meta_dict"]["filename_or_obj"][i])
             exit()
 
         """c = 1
         for d in train_loader:
             img = d["image"]
-            print(c, "Size:", img.nelement()*img.element_size()/1024/1024, "MB", "shape:", img.shape)
-            c += 1"""
-
-        #exit()
+            seg = d["seg"][0]
+            seg, _ = nrrd.read(seg)
+            img_name = d["image_meta_dict"]["filename_or_obj"][0]
+            print(c, "Name:", img_name, "Size:", img.nelement()*img.element_size()/1024/1024, "MB", "shape:", img.shape)
+            #multi_slice_viewer(img[0, 0, :, :, :], d["image_meta_dict"]["filename_or_obj"][0])
+            #multi_slice_viewer(seg, d["image_meta_dict"]["filename_or_obj"][0])
+            c += 1
+        exit()"""
+        
         # 5. Prepare model
         model = ModelCT().to(self.device)
 

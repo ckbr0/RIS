@@ -40,9 +40,13 @@ def remove_keymap_conflicts(new_keys_set):
             for key in remove_list:
                 keys.remove(key)
 
-def multi_slice_viewer(volume):
+def multi_slice_viewer(volume, image_name=None):
     remove_keymap_conflicts({'j', 'k'})
     fig, ax = plt.subplots()
+    title_text = f"Shape: {volume.shape}"
+    if image_name:
+        title_text = image_name + " " + title_text
+    ax.set_title(title_text)
     ax.volume = volume
     ax.index = volume.shape[-1] // 2
     ax.imshow(volume[:, :, ax.index], cmap='gray')
