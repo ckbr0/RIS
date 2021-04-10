@@ -73,7 +73,13 @@ class Trainer(SupervisedTrainer):
             os.mkdir(training_dir)
         self.output_dir = os.path.join(training_dir, self.unique_name +  '_' + timedate_info)
         os.mkdir(self.output_dir)
+        
         self.validator.output_dir = self.output_dir
+
+        if self.summary_writer is None:
+            self.summary_writer = SummaryWriter(log_dir=self.output_dir)
+        if self.validator.summary_writer is None:
+            self.validator.summary_writer = self.summary_writer
 
         handlers = [
             #MetricLogger(self.output_dir, validator=self.validator),
