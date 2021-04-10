@@ -68,7 +68,7 @@ class Trainer(SupervisedTrainer):
 
         now = datetime.datetime.now()
         timedate_info = str(now).split(' ')[0] + '_' + str(now.strftime("%H:%M:%S")).replace(':', '-')
-        training_dir = os.path.join(self.out_dir, 'trained_models')
+        training_dir = os.path.join(self.out_dir, 'training')
         if not os.path.exists(training_dir):
             os.mkdir(training_dir)
         self.output_dir = os.path.join(training_dir, self.unique_name +  '_' + timedate_info)
