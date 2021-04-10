@@ -227,7 +227,7 @@ class TrainingWorkflow():
 
         train_loader = DataLoader(
             train_dataset,
-            batch_size=batch_size,
+            batch_size=1,
             shuffle=True,
             pin_memory=self.pin_memory,
             num_workers=self.num_workers,
