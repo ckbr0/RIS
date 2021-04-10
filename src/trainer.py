@@ -21,7 +21,7 @@ class Trainer(SupervisedTrainer):
         self,
         device: torch.device,
         out_dir,
-        unique_name,
+        out_name,
         max_epochs: int,
         train_data_loader: Union[Iterable, DataLoader],
         network: torch.nn.Module,
@@ -41,7 +41,7 @@ class Trainer(SupervisedTrainer):
         self.validation_interval = validation_interval
         self.validator = validator
         self.out_dir = out_dir
-        self.unique_name = unique_name
+        self.out_name = out_name
         self.summary_writer = summary_writer
         self.lr_scheduler = lr_scheduler
 
@@ -71,7 +71,7 @@ class Trainer(SupervisedTrainer):
         training_dir = os.path.join(self.out_dir, 'training')
         if not os.path.exists(training_dir):
             os.mkdir(training_dir)
-        self.output_dir = os.path.join(training_dir, self.unique_name +  '_' + timedate_info)
+        self.output_dir = os.path.join(training_dir, self.out_name +  '_' + timedate_info)
         os.mkdir(self.output_dir)
         
         self.validator.output_dir = self.output_dir

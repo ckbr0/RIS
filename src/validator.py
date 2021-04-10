@@ -44,7 +44,7 @@ class Validator(SupervisedEvaluator):
 
     def run(self, global_epoch: int) -> None:
         
-        if global_epoch == 0:
+        if global_epoch == 1:
             handlers = [
                 StatsHandler(output_transform=lambda x: None),
                 TensorBoardStatsHandler(summary_writer=self.summary_writer, output_transform=lambda x: None),
