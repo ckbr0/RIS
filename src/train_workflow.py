@@ -42,6 +42,7 @@ from monai.transforms import (
     Activationsd,
     Compose,
     CropForegroundd,
+    CenterSpatialCropd,
     LoadImaged,
     Rotated,
     RandRotated,
@@ -66,12 +67,13 @@ from monai.transforms.croppad.batch import PadListDataCollate
 from monai.metrics import compute_roc_auc
 from monai.utils import NumpyPadMode, set_determinism
 from monai.utils.enums import Method
+import nrrd
 
 from model import ModelCT
 from utils import get_data_from_info, multi_slice_viewer
 from validation_handler import ValidationHandlerCT
-from transforms import CTWindowd, RandCTWindowd
-from nrrd_reader import NrrdReader
+from transforms import CTWindowd, RandCTWindowd, CTSegmentation, RelativeAsymmetricZCropd
+from large_image_splitter import large_image_splitter
 
 class TrainingWorkflow():
 
@@ -98,9 +100,11 @@ class TrainingWorkflow():
         # Create torch device
         if not cuda:
             self.pin_memory = False
+            self.amp = False
             self.device = torch.device('cpu')
         else:
             self.pin_memory = True
+            self.amp = True
             self.device = torch.device('cuda')
 
   
@@ -110,27 +114,29 @@ class TrainingWorkflow():
 
         basic_transforms = Compose(
             [
-                # Load image and seg
+                # Load image
                 LoadImaged(keys=["image"]),
-                AddChanneld(keys=["image"]),
-                LoadImaged(keys=["seg"], reader=NrrdReader()),
-                AddChanneld(keys=["seg"]),
 
                 # Segmentacija
-                MaskIntensityd(keys=["image"], mask_key="seg"),
+                CTSegmentation(keys=["image"]),
+                
+                AddChanneld(keys=["image"]),
 
                 # Crop foreground based on seg image.
-                CropForegroundd(keys=["image"], source_key="seg", margin=(50, 50, 50)),
+                CropForegroundd(keys=["image"], source_key="image", margin=(30, 30, 0)),
+                
+                # Obreži sliko v Z smeri, relative_z_roi = ( % od spodaj, % od zgoraj)
+                RelativeAsymmetricZCropd(keys=["image"], relative_z_roi=(0.15, 0.25)),
             ]
         )
 
         train_transforms = Compose(
             [
                 basic_transforms,
-                
+
                 # Normalizacija na CT okno
                 # https://radiopaedia.org/articles/windowing-ct
-                RandCTWindowd(keys=["image"], prob=1.0, width=(H-100, H+100), level=(L-50, L+50)),
+                RandCTWindowd(keys=["image"], prob=1.0, width=(H-50, H+50), level=(L-25, L+25)),
 
                 # Mogoče zanimiva
                 RandAxisFlipd(keys=["image"], prob=0.1),
@@ -138,30 +144,30 @@ class TrainingWorkflow():
                 RandAffined(
                     keys=["image"],
                     prob=0.25,
-                    rotate_range=(0, 0, np.pi/8),
-                    shear_range=(0.1, 0.1, 0.0),
+                    rotate_range=(0, 0, np.pi/16),
+                    shear_range=(0.05, 0.05, 0.0),
                     translate_range=(10, 10, 0),
-                    scale_range=(0.1, 0.1, 0.0),
+                    scale_range=(0.05, 0.05, 0.0),
                     spatial_size=(-1, -1, -1),
-                    padding_mode="zeros"
+                    padding_mode="zeros",
                 ),
 
                 ToTensord(keys=["image"]),
             ]
-        )
+        ).flatten()
 
         # NOTE: No random transforms in the validation data
         valid_transforms = Compose(
             [
                 basic_transforms,
-                
+
                 # Normalizacija na CT okno
                 # https://radiopaedia.org/articles/windowing-ct
                 CTWindowd(keys=["image"], width=H, level=L),
 
                 ToTensord(keys=["image"]),
             ]
-        )
+        ).flatten()
         
         return train_transforms, valid_transforms
 
@@ -204,8 +210,9 @@ class TrainingWorkflow():
 
         train_data = get_data_from_info(self.image_data_dir, self.seg_data_dir, train_info)
         valid_data = get_data_from_info(self.image_data_dir, self.seg_data_dir, valid_info)
-        print(self.persistent_dataset_dir)
-        #set_determinism(seed=0)
+        large_image_splitter(train_data, self.cache_dir)
+
+        set_determinism(seed=100)
         train_trans, valid_trans = self.transformations(H, L)
         train_dataset = PersistentDataset(
             data=train_data[:],
@@ -238,18 +245,23 @@ class TrainingWorkflow():
         if run_data_check:
             check_data = monai.utils.misc.first(train_loader)
             print(check_data["image"].shape, check_data["label"])
-            multi_slice_viewer(check_data["image"][0, 0, :, :, :])
-            plot.show()
-            multi_slice_viewer(check_data["image"][2, 0, :, :, :])
-            plot.show()
-            multi_slice_viewer(check_data["image"][4, 0, :, :, :])
-            plot.show()
-            multi_slice_viewer(check_data["image"][6, 0, :, :, :])
-            plot.show()
+            for i in range(batch_size):
+                multi_slice_viewer(check_data["image"][i, 0, :, :, :], check_data["image_meta_dict"]["filename_or_obj"][i])
             exit()
 
+        """c = 1
+        for d in train_loader:
+            img = d["image"]
+            seg = d["seg"][0]
+            seg, _ = nrrd.read(seg)
+            img_name = d["image_meta_dict"]["filename_or_obj"][0]
+            print(c, "Name:", img_name, "Size:", img.nelement()*img.element_size()/1024/1024, "MB", "shape:", img.shape)
+            multi_slice_viewer(img[0, 0, :, :, :], d["image_meta_dict"]["filename_or_obj"][0])
+            #multi_slice_viewer(seg, d["image_meta_dict"]["filename_or_obj"][0])
+            c += 1
+        exit()"""
+        
         # 5. Prepare model
-
         model = ModelCT().to(self.device)
 
         # 6. Define loss function, optimizer and scheduler
@@ -283,7 +295,7 @@ class TrainingWorkflow():
             key_val_metric={"Valid_AUC": ROCAUC(output_transform=lambda x: (x["pred"], x["label"]))},
             additional_metrics={"Valid_Accuracy": Accuracy(output_transform=lambda x: (discrete(x["pred"]), x["label"]))},
             val_handlers=valid_handlers,
-            amp=False,
+            amp=self.amp,
         )
         # 9. Create trainer
 
@@ -323,7 +335,7 @@ class TrainingWorkflow():
             loss_function=loss_function,
             post_transform=train_post_transforms,
             train_handlers=train_handlers,
-            amp=False,
+            amp=self.amp,
         )
         # 10. Run trainer
         trainer.run()

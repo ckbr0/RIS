@@ -9,13 +9,17 @@ from sklearn.model_selection import train_test_split
 
 from utils import get_data_from_info
 from train_workflow import TrainingWorkflow
+from train import Training
 
-def main():
-    parser = argparse.ArgumentParser(description='RIS.')
-    parser.add_argument("--data_check", help="run data check", action="store_true")
-    args = parser.parse_args()
-    if args.data_check:
-        print("running data check...")
+def main(parse_args=False):
+    data_check = False
+    if parse_args:
+        parser = argparse.ArgumentParser(description='RIS.')
+        parser.add_argument("--data_check", help="run data check", action="store_true")
+        args = parser.parse_args()
+        if args.data_check:
+            data_check = True
+            print("running data check...")
 
     # Osnovne datoteke
     src_dir = os.path.dirname(os.path.abspath(__file__))
@@ -23,9 +27,9 @@ def main():
     out_dir = os.path.abspath(os.path.join(src_dir, '..', 'out'))
     cache_dir = os.path.abspath(os.path.join(src_dir, '..', 'cache'))
 
-    hackathon_dir = os.path.join(data_dir, 'HACKATHON')
     # Naloži train hackathon podatje
-    with open(hackathon_dir + "/train.txt", 'r') as fp:
+    hackathon_dir = os.path.join(data_dir, 'HACKATHON')
+    with open(os.path.join(hackathon_dir, "train.txt"), 'r') as fp:
         train_info = [entry.strip().split(',') for entry in fp.readlines()]
     #path_to_images = os.path.join(hackathon_dir, 'images', 'train')
     #path_to_segs = os.path.join(hackathon_dir, 'segmentations', 'train')
@@ -33,7 +37,9 @@ def main():
 
     # Naloži druge podatke
     # TODO: Podatki iz vaj
-    extra_valid_info = []
+    stitched_dir = os.path.join(data_dir, 'stitched')
+    with open(os.path.join(stitched_dir, "train.txt"), 'r') as fp:
+        extra_train_info = [entry.strip().split(',') for entry in fp.readlines()]
     
     # Naloži podatke za končni test
     path_to_images = os.path.join(hackathon_dir, 'images', 'test')
@@ -58,16 +64,21 @@ def main():
     hyperparameters['weight_decay'] = 0.0001 # weight decay
     hyperparameters['total_epoch'] = 6 # total number of epochs
     hyperparameters['multiplicator'] = 0.95 # each epoch learning rate is decreased on LR*multiplicator
-    hyperparameters['batch_size'] = 8
+    hyperparameters['batch_size'] = 2
     hyperparameters['validation_epoch'] = 1 # Only perform validations if current epoch is greater or equal validation_epoch
     hyperparameters['validation_interval'] = 1
     hyperparameters['H'] = 1500
     hyperparameters['L'] = -600
 
-    training = TrainingWorkflow(data_dir, hackathon_dir, out_dir, cache_dir, 'model_ct', num_workers=0, cuda=False)
+    if os.name == 'nt':
+        num_workers = 0
+    else:
+        num_workers = 0
 
-    training.train(train_info, valid_info, hyperparameters, run_data_check=args.data_check)
+    training = TrainingWorkflow(data_dir, hackathon_dir, out_dir, cache_dir, 'model_ct', num_workers=num_workers, cuda=True)
+
+    training.train(train_info, valid_info, hyperparameters, run_data_check=data_check)
     
 if __name__ == '__main__':
-    main()
+    main(True)
 
