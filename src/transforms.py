@@ -97,9 +97,9 @@ class CTSegmentation(MaskIntensityd):
         
         reader = None
         for r in reversed(self.readers):
-                if r.verify_suffix(seg_filename):
-                    reader = r
-                    break
+            if r.verify_suffix(seg_filename):
+                reader = r
+                break
 
         if reader is None:
             raise RuntimeError(f"can not find suitable reader for this file: {seg_filename}.")
