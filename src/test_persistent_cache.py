@@ -15,7 +15,6 @@ def check_persistent_cache(cache_dir):
     print(r_pt)
     pt = torch.load(r_pt)
     print('size of image:', pt['image'].nbytes / 1024 / 1024, 'MB')
-    #print('size of seg:', pt['seg'].nbytes / 1024 / 1024, 'MB')
 
 if __name__ == '__main__':
     src_dir = os.path.dirname(os.path.abspath(__file__))

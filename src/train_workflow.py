@@ -126,7 +126,7 @@ class TrainingWorkflow():
                 CropForegroundd(keys=["image"], source_key="image", margin=(30, 30, 0)),
                 
                 # Obreži sliko v Z smeri, relative_z_roi = ( % od spodaj, % od zgoraj)
-                RelativeAsymmetricZCropd(keys=["image"], relative_z_roi=(0.05, 0.15)),
+                RelativeAsymmetricZCropd(keys=["image"], relative_z_roi=(0.15, 0.25)),
             ]
         )
 
@@ -136,7 +136,7 @@ class TrainingWorkflow():
 
                 # Normalizacija na CT okno
                 # https://radiopaedia.org/articles/windowing-ct
-                RandCTWindowd(keys=["image"], prob=1.0, width=(H-100, H+100), level=(L-50, L+50)),
+                RandCTWindowd(keys=["image"], prob=1.0, width=(H-50, H+50), level=(L-25, L+25)),
 
                 # Mogoče zanimiva
                 RandAxisFlipd(keys=["image"], prob=0.1),
@@ -145,9 +145,9 @@ class TrainingWorkflow():
                     keys=["image"],
                     prob=0.25,
                     rotate_range=(0, 0, np.pi/16),
-                    shear_range=(0.1, 0.1, 0.0),
+                    shear_range=(0.05, 0.05, 0.0),
                     translate_range=(10, 10, 0),
-                    scale_range=(0.1, 0.1, 0.0),
+                    scale_range=(0.05, 0.05, 0.0),
                     spatial_size=(-1, -1, -1),
                     padding_mode="zeros",
                 ),
@@ -256,7 +256,7 @@ class TrainingWorkflow():
             seg, _ = nrrd.read(seg)
             img_name = d["image_meta_dict"]["filename_or_obj"][0]
             print(c, "Name:", img_name, "Size:", img.nelement()*img.element_size()/1024/1024, "MB", "shape:", img.shape)
-            #multi_slice_viewer(img[0, 0, :, :, :], d["image_meta_dict"]["filename_or_obj"][0])
+            multi_slice_viewer(img[0, 0, :, :, :], d["image_meta_dict"]["filename_or_obj"][0])
             #multi_slice_viewer(seg, d["image_meta_dict"]["filename_or_obj"][0])
             c += 1
         exit()"""

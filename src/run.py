@@ -27,9 +27,9 @@ def main(parse_args=False):
     out_dir = os.path.abspath(os.path.join(src_dir, '..', 'out'))
     cache_dir = os.path.abspath(os.path.join(src_dir, '..', 'cache'))
 
-    hackathon_dir = os.path.join(data_dir, 'HACKATHON')
     # Naloži train hackathon podatje
-    with open(hackathon_dir + "/train.txt", 'r') as fp:
+    hackathon_dir = os.path.join(data_dir, 'HACKATHON')
+    with open(os.path.join(hackathon_dir, "train.txt"), 'r') as fp:
         train_info = [entry.strip().split(',') for entry in fp.readlines()]
     #path_to_images = os.path.join(hackathon_dir, 'images', 'train')
     #path_to_segs = os.path.join(hackathon_dir, 'segmentations', 'train')
@@ -37,7 +37,9 @@ def main(parse_args=False):
 
     # Naloži druge podatke
     # TODO: Podatki iz vaj
-    extra_valid_info = []
+    stitched_dir = os.path.join(data_dir, 'stitched')
+    with open(os.path.join(stitched_dir, "train.txt"), 'r') as fp:
+        extra_train_info = [entry.strip().split(',') for entry in fp.readlines()]
     
     # Naloži podatke za končni test
     path_to_images = os.path.join(hackathon_dir, 'images', 'test')
@@ -62,7 +64,7 @@ def main(parse_args=False):
     hyperparameters['weight_decay'] = 0.0001 # weight decay
     hyperparameters['total_epoch'] = 6 # total number of epochs
     hyperparameters['multiplicator'] = 0.95 # each epoch learning rate is decreased on LR*multiplicator
-    hyperparameters['batch_size'] = 1
+    hyperparameters['batch_size'] = 2
     hyperparameters['validation_epoch'] = 1 # Only perform validations if current epoch is greater or equal validation_epoch
     hyperparameters['validation_interval'] = 1
     hyperparameters['H'] = 1500
@@ -73,7 +75,7 @@ def main(parse_args=False):
     else:
         num_workers = 0
 
-    training = TrainingWorkflow(data_dir, hackathon_dir, out_dir, cache_dir, 'model_ct', num_workers=num_workers, cuda=False)
+    training = TrainingWorkflow(data_dir, hackathon_dir, out_dir, cache_dir, 'model_ct', num_workers=num_workers, cuda=True)
 
     training.train(train_info, valid_info, hyperparameters, run_data_check=data_check)
     

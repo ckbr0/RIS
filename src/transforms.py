@@ -110,7 +110,7 @@ class CTSegmentation(MaskIntensityd):
             d[key] = self.converter(d[key], seg_array)
         return d
 
-class RelativeAsymmetricZCropd(MapTransform):
+class RelativeCropZd(MapTransform):
 
     def __init__(self, keys: KeysCollection, relative_z_roi: Sequence[float], allow_missing_keys: bool = False) -> None:
         self.relative_z_roi = relative_z_roi
@@ -129,3 +129,4 @@ class RelativeAsymmetricZCropd(MapTransform):
             cropper = SpatialCrop(roi_start=roi_start, roi_end=roi_end)
             d[key] = cropper(d[key])
         return d
+
