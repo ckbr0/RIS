@@ -6,11 +6,20 @@ import nrrd
 
 import matplotlib.pyplot as plt
 
+def replace_suffix(string, old_suffix, new_suffix):
+    if string.endswith(old_suffix):
+        new_string = string[:-len(old_suffix)]
+    else:
+        raise Exception
+
+    return new_string + new_suffix
+
 def get_data_from_info(path_to_images, path_to_segs, info):
     data = []
     for image_name, label in info:
         if not label: label = -1
-        seg_name = image_name.removesuffix('.nii.gz') + '.nrrd'
+        #seg_name = image_name.removesuffix('.nii.gz') + '.nrrd'
+        seg_name = replace_suffix(image_name, '.nii.gz', '.nrrd')
         image = os.path.join(path_to_images, image_name)
         seg = os.path.join(path_to_segs, seg_name)
 

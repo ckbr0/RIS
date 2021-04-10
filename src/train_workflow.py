@@ -256,17 +256,14 @@ class TrainingWorkflow():
         loss_function = torch.nn.BCEWithLogitsLoss(pos_weight) # pos_weight for class imbalance
         optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, multiplicator, last_epoch=-1)
-        print('10')
         # 7. Create post validation transforms and handlers
         path_to_tensorboard = os.path.join(self.out_dir, 'tensorboard')
         writer = SummaryWriter(log_dir=path_to_tensorboard)
-        print('11')
         valid_post_transforms = Compose(
             [
                 Activationsd(keys="pred", sigmoid=True),
             ]
         )
-        print('12')
         valid_handlers = [
             StatsHandler(output_transform=lambda x: None),
             TensorBoardStatsHandler(summary_writer=writer, output_transform=lambda x: None),
@@ -276,7 +273,6 @@ class TrainingWorkflow():
                 save_key_metric=True),
             MetricsSaver(save_dir=path_to_model, metrics=['Valid_AUC', 'Valid_ACC']),
         ]
-        print('13')
         # 8. Create validatior
         discrete = AsDiscrete(threshold_values=True)
         evaluator = SupervisedEvaluator(
@@ -289,7 +285,6 @@ class TrainingWorkflow():
             val_handlers=valid_handlers,
             amp=False,
         )
-        print('14')
         # 9. Create trainer
 
         # Loss function does the last sigmoid, so we dont need it here.
@@ -298,7 +293,6 @@ class TrainingWorkflow():
                 # Empty
             ]
         )
-        print('15')
         logger = MetricLogger(evaluator=evaluator)
         train_handlers = [
             logger,
@@ -331,10 +325,8 @@ class TrainingWorkflow():
             train_handlers=train_handlers,
             amp=False,
         )
-        print('16')
         # 10. Run trainer
         trainer.run()
-        print('17')
         # 11. Save results
         np.save(path_to_model + '/AUCS.npy', np.array(logger.metrics['Valid_AUC']))
         np.save(path_to_model + '/ACCS.npy', np.array(logger.metrics['Valid_ACC']))
