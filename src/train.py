@@ -41,7 +41,7 @@ def main():
     dirs = setup_directories()
 
     # Setup torch device
-    device, using_gpu = create_device("cuda")
+    device, using_gpu = create_device("cpu")
 
     # Load and randomize images
 
