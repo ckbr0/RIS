@@ -146,10 +146,13 @@ def calculate_class_imbalance(train_info):
     return pos_weight
 
 def create_device(device_name):
+    gpu = False
     if "cuda" in device_name:
-        gpu = True
-    else:
-        gpu = False
+        if torch.cuda.is_available():
+            gpu = True
+        else:
+            print("Cuda device is not supported, switching to CPU")
+            device_name = "cpu"
 
     device = torch.device(device_name)
     return device, gpu
