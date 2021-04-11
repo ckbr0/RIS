@@ -8,7 +8,7 @@ from monai.transforms import (
     Compose,
     LoadImaged,
     AddChanneld,
-    #CropForegroundd,
+    CropForegroundd,
     ToTensord,
     RandAxisFlipd,
     RandAffined,
@@ -41,7 +41,7 @@ def main():
     dirs = setup_directories()
 
     # Setup torch device
-    device, using_gpu = create_device("cpu")
+    device, using_gpu = create_device("cuda")
 
     # Load and randomize images
 
@@ -130,7 +130,7 @@ def main():
     ])
 
     # Setup data
-    set_determinism(seed=100)
+    #set_determinism(seed=100)
     train_dataset = PersistentDataset(data=train_data_hackathon[:], transform=hackathon_train_transform, cache_dir=dirs["persistent"])
     valid_dataset = PersistentDataset(data=valid_data_hackathon[:], transform=hackathon_valid_transfrom, cache_dir=dirs["persistent"])
     train_loader = DataLoader(
@@ -196,7 +196,7 @@ def main():
         size = int(image.nelement()*image.element_size()/1024/1024)
         size_max = max(size_max, size)
         print("shape:", shape, "size:", str(size)+"MB")
-        #multi_slice_viewer(image[0, 0, :, :, :], "")
+        multi_slice_viewer(image[0, 0, :, :, :], "")
     print(x_max, y_max, z_max, str(size_max)+"MB")"""
 
     # Run trainer
