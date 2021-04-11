@@ -1,12 +1,15 @@
-from typing import Any, Dict, Hashable, Mapping, Optional, Tuple, Union, Sequence
-from monai.transforms.croppad.dictionary import SpatialCropd
+from typing import Any, Dict, Hashable, Mapping, Optional, Tuple, Union, Sequence, Callable, List
+import itertools
 import numpy as np
+import monai.transforms
 from monai.transforms import NormalizeIntensityd, MaskIntensityd, SpatialCrop
 from monai.transforms.transform import MapTransform, RandomizableTransform
 from monai.transforms.inverse import InvertibleTransform
 from monai.transforms.intensity.array import NormalizeIntensity
+from monai.transforms.croppad.dictionary import SpatialCropd
+#from monai.transforms.utils import generate_spatial_bounding_box
 from monai.config import DtypeLike, KeysCollection
-from monai.utils import NumpyPadMode
+from monai.utils import NumpyPadMode, ensure_tuple, ensure_tuple_rep
 from monai.utils.enums import Method
 from monai.data import NumpyReader
 from nrrd_reader import NrrdReader
