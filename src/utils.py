@@ -100,6 +100,8 @@ def large_image_splitter(data, cache_dir):
 
     if os.path.exists(split_images):
         split_images = np.load(split_images, allow_pickle=True)
+        for s in split_images:
+            print("split image:", s["source"])
         _replace_in_data(split_images)
     else:
         if not os.path.exists(split_images_dir):
@@ -143,3 +145,14 @@ def calculate_class_imbalance(train_info):
 
     return pos_weight
 
+def create_device(device_name):
+    gpu = False
+    if "cuda" in device_name:
+        if torch.cuda.is_available():
+            gpu = True
+        else:
+            print("Cuda device is not supported, switching to CPU")
+            device_name = "cpu"
+
+    device = torch.device(device_name)
+    return device, gpu
