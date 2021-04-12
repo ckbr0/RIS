@@ -1,7 +1,6 @@
 import sys
 import os
 import logging
-from glob import glob
 import numpy as np
 import torch
 import monai.networks.nets as nets
@@ -11,6 +10,7 @@ from monai.transforms import (
     AddChanneld,
     CropForegroundd,
     ToTensord,
+    RandFlipd,
     RandAxisFlipd,
     RandAffined,
     SpatialPadd,
@@ -94,7 +94,10 @@ def main():
         level=(rand_WL-25, rand_WL+25)
     )"""
     # Random axis flip
-    rand_axis_flip = RandAxisFlipd(keys=["image"], prob=0.1)
+    #rand_axis_flip = RandAxisFlipd(keys=["image"], prob=0.1)
+    rand_x_flip = RandFlipd(keys=["image"], spatial_axis=0, prob=0.25)
+    rand_y_flip = RandFlipd(keys=["image"], spatial_axis=1, prob=0.25)
+    rand_z_flip = RandFlipd(keys=["image"], spatial_axis=2, prob=0.25)
     # Rand affine transform
     rand_affine = RandAffined(
         keys=["image"],
@@ -123,7 +126,9 @@ def main():
     ])
     hackathon_train_transform = Compose([
         common_transform,
-        rand_axis_flip,
+        rand_x_flip,
+        rand_y_flip,
+        rand_z_flip,
         rand_affine,
         rand_gaussian_noise,
         ToTensord(keys=["image"]),
@@ -193,7 +198,7 @@ def main():
         device=device,
         out_dir=dirs["out"],
         out_name="DenseNet121",
-        max_epochs=120,
+        max_epochs=1,
         train_data_loader=train_loader,
         network=network,
         optimizer=optimizer,
@@ -223,12 +228,12 @@ def main():
     train_output = trainer.run()
     
     # Setup tester
-    load_path = glob(os.path.join(train_output, 'network_key_metric*'))[0]
     tester = Tester(
         device=device,
         test_data_loader=test_loader,
+        load_dir=train_output,
+        out_dir=dirs["out"],
         network=network,
-        load_path=load_path,
         post_transform=valid_post_transforms,
         non_blocking=using_gpu,
         amp=using_gpu
