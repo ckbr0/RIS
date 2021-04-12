@@ -6,6 +6,7 @@ import nrrd
 from monai.transforms import LoadImage, SaveImage
 from monai.data.nifti_writer import write_nifti
 import torch
+import random
 
 import matplotlib.pyplot as plt
 
@@ -154,7 +155,7 @@ def calculate_class_imbalance(train_info):
 
     return pos_weight
 
-def balance_training_data(train_info, image_dir):
+def balance_training_data(train_info):
     negative, positive = 0, 0
     for _, label in train_info:
         if int(label) == 0:
@@ -162,14 +163,11 @@ def balance_training_data(train_info, image_dir):
         elif int(label) == 1:
             positive += 1
     d = negative-positive
-    i = 0
     file_list = [x for x in train_info if int(x[1])==1]
-    path = "/home/jupyter/RIS/data/HACKATHON/images/copy"
-    os.mkdir(path)
-    while(d > 0):
-        shutil.copyfile(image_dir+'/'+file_list[i%len(file_list)][0], path+'/'+file_list[i%len(file_list)][0])
-        d-=1
-        i+=1
+    random.shuffle(file_list)
+    for i in range(d):
+        train_info.append(file_list[random.randint(0,len(file_list)-1)])
+    random.shuffle(train_info)
 
 
 def create_device(device_name):
@@ -183,3 +181,5 @@ def create_device(device_name):
 
     device = torch.device(device_name)
     return device, gpu
+
+    
