@@ -18,7 +18,7 @@ from monai.transforms import (
 )
 from transforms import (
     CTWindowd,
-    RandCTWindowd,
+    #RandCTWindowd,
     CTSegmentation,
     RelativeCropZd,
 )
@@ -41,17 +41,21 @@ def main():
     dirs = setup_directories()
 
     # Setup torch device
-    device, using_gpu = create_device("cpu")
+    device, using_gpu = create_device("cuda")
 
     # Load and randomize images
 
     # HACKATON image and segmentation data
     hackathon_dir = os.path.join(dirs["data"], 'HACKATHON')
+    map_fn = lambda x: (x[0], int(x[1]))
     with open(os.path.join(hackathon_dir, "train.txt"), 'r') as fp:
-        train_info_hackathon = [entry.strip().split(',') for entry in fp.readlines()]
+        train_info_hackathon = [map_fn(entry.strip().split(',')) for entry in fp.readlines()]
     image_dir = os.path.join(hackathon_dir, 'images', 'train')
     seg_dir = os.path.join(hackathon_dir, 'segmentations', 'train')
-    _train_data_hackathon = get_data_from_info(image_dir, seg_dir, train_info_hackathon)
+    _train_data_hackathon = get_data_from_info(
+        image_dir, seg_dir, train_info_hackathon, dual_output=False
+    )
+    large_image_splitter(_train_data_hackathon, dirs["cache"])
     # PSUF data
     """psuf_dir = os.path.join(dirs["data"], 'psuf')
     with open(os.path.join(psuf_dir, "train.txt"), 'r') as fp:
@@ -61,8 +65,6 @@ def main():
     # Split data into train, validate and test
     train_split, test_data_hackathon = train_test_split(_train_data_hackathon, test_size=0.2, shuffle=True, random_state=42)
     train_data_hackathon, valid_data_hackathon = train_test_split(train_split, test_size=0.2, shuffle=True, random_state=43)
-    large_image_splitter(train_data_hackathon, dirs["cache"])
-
     # Setup transforms
 
     # Crop foreground
@@ -70,7 +72,7 @@ def main():
         keys=["image"],
         source_key="image",
         margin=(5, 5, 0),
-        select_fn = lambda x: x != 0
+        #select_fn = lambda x: x != 0
     )
     # Crop Z
     crop_z = RelativeCropZd(keys=["image"], relative_z_roi=(0.07, 0.12))
@@ -78,19 +80,19 @@ def main():
     WW, WL = 1500, -600
     ct_window = CTWindowd(keys=["image"], width=WW, level=WL)
     # Random variatnon in CT window
-    rand_WW, rand_WL = 50, 25
+    """rand_WW, rand_WL = 50, 25
     rand_ct_window = RandCTWindowd(
         keys=["image"],
         prob=1.0,
         width=(WW-rand_WW, WW+rand_WW),
         level=(rand_WL-25, rand_WL+25)
-    )
+    )"""
     # Random axis flip
     rand_axis_flip = RandAxisFlipd(keys=["image"], prob=0.1)
     # Rand affine transform
     rand_affine = RandAffined(
         keys=["image"],
-        prob=0.25,
+        prob=0.5,
         rotate_range=(0, 0, np.pi/16),
         shear_range=(0.05, 0.05, 0.0),
         translate_range=(0, 0, 0),
@@ -103,6 +105,7 @@ def main():
     # Create transforms
     common_transform = Compose([
         LoadImaged(keys=["image"]),
+        ct_window,
         CTSegmentation(keys=["image"]),
         AddChanneld(keys=["image"]),
         resize,
@@ -112,15 +115,12 @@ def main():
     ])
     hackathon_train_transform = Compose([
         common_transform,
-        rand_ct_window,
         rand_axis_flip,
         rand_affine,
-        #crop_foreground,
         ToTensord(keys=["image"]),
     ]).flatten()
     hackathon_valid_transfrom = Compose([
         common_transform,
-        ct_window,
         ToTensord(keys=["image"]),
     ]).flatten()
     psuf_transforms = Compose([
@@ -138,7 +138,7 @@ def main():
         batch_size=2,
         shuffle=True,
         pin_memory=using_gpu,
-        num_workers=2,
+        num_workers=1,
         collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT)
     )
     valid_loader = DataLoader(
@@ -146,16 +146,16 @@ def main():
         batch_size=2,
         shuffle=True,
         pin_memory=using_gpu,
-        num_workers=2,
+        num_workers=1,
         collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT)
     )
 
     # Setup network, loss function, optimizer and scheduler
-    network = nets.DenseNet(spatial_dims=3, in_channels=1, out_channels=1).to(device)
+    network = nets.DenseNet121(spatial_dims=3, in_channels=1, out_channels=1).to(device)
     # pos_weight for class imbalance
     pos_weight = calculate_class_imbalance(train_info_hackathon).to(device)
     loss_function = torch.nn.BCEWithLogitsLoss(pos_weight)
-    optimizer = torch.optim.Adam(network.parameters(), lr=0.2e-3, weight_decay=0.0001)
+    optimizer = torch.optim.Adam(network.parameters(), lr=1e-5)#, weight_decay=0.001)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95, last_epoch=-1)
 
     # Setup validator and trainer
@@ -174,13 +174,13 @@ def main():
     trainer = Trainer(
         device=device,
         out_dir=dirs["out"],
-        out_name="DenseNet",
-        max_epochs=60,
+        out_name="DenseNet121",
+        max_epochs=120,
         train_data_loader=train_loader,
         network=network,
         optimizer=optimizer,
         loss_function=loss_function,
-        lr_scheduler=scheduler,
+        lr_scheduler=None,
         validator=validator,
         amp=using_gpu,
         non_blocking=using_gpu
@@ -189,6 +189,8 @@ def main():
     """x_max, y_max, z_max, size_max = 0, 0, 0, 0
     for data in train_loader:
         image = data["image"]
+        label = data["label"]
+        print(label)
         shape = image.shape
         x_max = max(x_max, shape[-3])
         y_max = max(y_max, shape[-2])
@@ -196,7 +198,7 @@ def main():
         size = int(image.nelement()*image.element_size()/1024/1024)
         size_max = max(size_max, size)
         print("shape:", shape, "size:", str(size)+"MB")
-        multi_slice_viewer(image[0, 0, :, :, :], "")
+        #multi_slice_viewer(image[0, 0, :, :, :], str(label))
     print(x_max, y_max, z_max, str(size_max)+"MB")"""
 
     # Run trainer
