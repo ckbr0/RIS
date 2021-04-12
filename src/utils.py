@@ -6,6 +6,7 @@ import nrrd
 from monai.transforms import LoadImage, SaveImage
 from monai.data.nifti_writer import write_nifti
 import torch
+import random
 
 import matplotlib.pyplot as plt
 
@@ -165,3 +166,11 @@ def create_device(device_name):
 
     device = torch.device(device_name)
     return device, gpu
+
+def balance_training_data(train_info):
+    
+    file_list = [x for x in train_info if int(x['label'])==1]
+    
+    for i in range(len(train_info)-2*len(file_list)):
+        train_info.append(file_list[random.randint(0,len(file_list)-1)])
+

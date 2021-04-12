@@ -56,6 +56,7 @@ def main():
         image_dir, seg_dir, train_info_hackathon, dual_output=False
     )
     large_image_splitter(_train_data_hackathon, dirs["cache"])
+
     # PSUF data
     """psuf_dir = os.path.join(dirs["data"], 'psuf')
     with open(os.path.join(psuf_dir, "train.txt"), 'r') as fp:
