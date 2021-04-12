@@ -2,7 +2,7 @@ from typing import Any, Dict, Hashable, Mapping, Optional, Tuple, Union, Sequenc
 import itertools
 import numpy as np
 import monai.transforms
-from monai.transforms import NormalizeIntensityd, MaskIntensityd, SpatialCrop
+from monai.transforms import NormalizeIntensityd, MaskIntensityd, SpatialCrop, ScaleIntensityRanged
 from monai.transforms.transform import MapTransform, RandomizableTransform
 from monai.transforms.inverse import InvertibleTransform
 from monai.transforms.intensity.array import NormalizeIntensity
@@ -20,7 +20,7 @@ def _calc_grey_levels(width, level):
     upper = level + (width / 2)
     return lower, upper
 
-class CTWindowd(NormalizeIntensityd):
+class CTWindowd(ScaleIntensityRanged):
 
     def __init__(
         self, 
@@ -36,7 +36,7 @@ class CTWindowd(NormalizeIntensityd):
         self.level = level
         self.lower, self.upper = _calc_grey_levels(width, level)
         
-        super().__init__(keys, subtrahend=self.lower, divisor=(self.upper-self.lower), nonzero=nonzero, dtype=dtype, allow_missing_keys=allow_missing_keys)
+        super().__init__(keys, a_min=self.lower, a_max=self.upper, b_min=0.0, b_max=1.0, clip=True, allow_missing_keys=allow_missing_keys)
 
 class RandCTWindowd(RandomizableTransform, MapTransform):
 
@@ -84,6 +84,7 @@ class RandCTWindowd(RandomizableTransform, MapTransform):
 
         lower, upper = _calc_grey_levels(self.width_value, self.level_value)
         normalizer = NormalizeIntensity(subtrahend=lower, divisor=(upper-lower), nonzero=self.nonzero, dtype=self.dtype)
+        
         for key in self.key_iterator(d):
             d[key] = normalizer(d[key])
         return d

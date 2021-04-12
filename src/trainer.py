@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Iterable, Union
+from typing import Callable, DefaultDict, Dict, Iterable, Union
 import os
 import datetime
 
@@ -27,8 +27,8 @@ class Trainer(SupervisedTrainer):
         network: torch.nn.Module,
         optimizer: Optimizer,
         loss_function: Callable,
-        lr_scheduler,
         validator: Engine,
+        lr_scheduler = None,
         summary_writer: SummaryWriter = None,
         validation_epoch: int = 1,
         validation_interval: int = 1,
@@ -83,7 +83,6 @@ class Trainer(SupervisedTrainer):
 
         handlers = [
             #MetricLogger(self.output_dir, validator=self.validator),
-            LrScheduleHandler(lr_scheduler=self.lr_scheduler, print_lr=True),
             ValidationHandler(
                 validator=self.validator,
                 start=self.validation_epoch,
@@ -95,17 +94,14 @@ class Trainer(SupervisedTrainer):
                 tag_name="Loss",
                 output_transform=lambda x: x["loss"]
             ),
-            CheckpointSaver(
-                save_dir=self.output_dir,
-                save_dict={
-                    'network': self.network,
-                    'optimizer': self.optimizer,
-                    'lr_scheduler': self.lr_scheduler
-                },
-                save_interval=1,
-                n_saved=1
-            ),
         ]
+        save_dict = { 'network': self.network, 'optimizer': self.optimizer }
+        if self.lr_scheduler is not None:
+            handlers.insert(0, LrScheduleHandler(lr_scheduler=self.lr_scheduler, print_lr=True))
+            save_dict['lr_scheduler'] = self.lr_scheduler
+        handlers.append(
+            CheckpointSaver(save_dir=self.output_dir, save_dict=save_dict, save_interval=1, n_saved=1)
+        )
         self._register_handlers(handlers)
 
         return super().run()
