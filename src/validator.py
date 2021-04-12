@@ -33,14 +33,15 @@ class Validator(SupervisedEvaluator):
             non_blocking=non_blocking,
             iteration_update=self._iteration,
             post_transform=post_transform,
-            key_val_metric={"Valid_AUC": ROCAUC(output_transform=lambda x: (x["pred"], x["label"]))},
+            key_val_metric={
+                "Valid_AUC": ROCAUC(output_transform=lambda x: (x["pred"], x["label"]))
+            },
             additional_metrics={
                 "Valid_Accuracy": Accuracy(output_transform=lambda x:(AsDiscrete(threshold_values=True)(x["pred"]), x["label"]))
             },
             amp=amp,
             mode=mode
         )
-
 
     def run(self, global_epoch: int) -> None:
         
