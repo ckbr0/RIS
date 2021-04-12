@@ -161,7 +161,7 @@ def balance_training_data(train_info):
             negative += 1
         elif int(label) == 1:
             positive += 1
-    d = negative-postitive
+    d = negative-positive
     i = 0
     file_list = [x for x in train_info_hackathon if int(x[1])==1]
     path = '/home/jupyter/RIS/data/HACKATHON/images/copy'
