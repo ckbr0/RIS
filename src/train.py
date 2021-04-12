@@ -56,9 +56,8 @@ def main():
         image_dir, seg_dir, train_info_hackathon, dual_output=False
     )
 
-    print('balance')
     # balance_data
-    #balance_training_data(train_info_hackathon)
+    balance_training_data(train_info_hackathon, image_dir)
 
     # PSUF data
     """psuf_dir = os.path.join(dirs["data"], 'psuf')

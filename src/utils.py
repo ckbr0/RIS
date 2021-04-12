@@ -154,7 +154,7 @@ def calculate_class_imbalance(train_info):
 
     return pos_weight
 
-def balance_training_data(train_info):
+def balance_training_data(train_info, image_dir):
     negative, positive = 0, 0
     for _, label in train_info:
         if int(label) == 0:
@@ -163,15 +163,14 @@ def balance_training_data(train_info):
             positive += 1
     d = negative-positive
     i = 0
-    file_list = [x for x in train_info_hackathon if int(x[1])==1]
-    path = '/home/jupyter/RIS/data/HACKATHON/images/copy'
+    file_list = [x for x in train_info if int(x[1])==1]
+    path = "/home/jupyter/RIS/data/HACKATHON/images/copy"
+    os.mkdir(path)
+    path = '/home/jupyter/RIS/data/HACKATHON/images/copy/'
     while(d > 0):
+        shutil.copyfile(image_dir+'/'+file_list[i%len(file_list)][0], path+file_list[i%len(file_list)][0])
         d-=1
         i+=1
-        shutil.copyfile(image_dir+'/'+file_list[i%len(file_list)][0], path+file_list[i%len(file_list)][0])
-
-
-
 
 
 def create_device(device_name):
