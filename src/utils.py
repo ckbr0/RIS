@@ -154,6 +154,21 @@ def calculate_class_imbalance(train_info):
 
     return pos_weight
 
+def balance_training_data(train_info):
+    negative, positive = 0, 0
+    for _, label in train_info:
+        if int(label) == 0:
+            negative += 1
+        elif int(label) == 1:
+            positive += 1
+    d = negative-postitive
+    i = 0
+    file_list = [x for x in train_info_hackathon if int(x[1])==1]
+    path = '/home/jupyter/RIS/data/HACKATHON/images/copy'
+    while(d > 0):
+        d-=1
+        i+=1
+        shutil.copyfile(image_dir+'/'+file_list[i%len(file_list)][0], path+file_list[i%len(file_list)][0])
 
 
 
