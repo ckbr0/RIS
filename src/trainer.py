@@ -60,7 +60,7 @@ class Trainer(SupervisedTrainer):
             amp=amp
         )
 
-    def run(self) -> None:
+    def run(self) -> str:
         
         now = datetime.datetime.now()
         datetime_string = now.strftime('%d/%m/%Y %H:%M:%S')
@@ -105,7 +105,7 @@ class Trainer(SupervisedTrainer):
         self._register_handlers(handlers)
 
         super().run()
-        return self.out_dir
+        return self.output_dir
 
     def _iteration(self, engine: Engine, batchdata: Dict[str, torch.Tensor]):
         return super()._iteration(engine, batchdata)
