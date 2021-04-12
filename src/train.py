@@ -30,7 +30,7 @@ from monai.config import print_config
 from sklearn.model_selection import train_test_split
 from trainer import Trainer
 from validator import Validator
-from utils import multi_slice_viewer, setup_directories, get_data_from_info, large_image_splitter, calculate_class_imbalance, create_device
+from utils import multi_slice_viewer, setup_directories, get_data_from_info, large_image_splitter, calculate_class_imbalance, create_device, balance_training_data
 from test_data_loader import TestDataset
 
 def main():
@@ -56,6 +56,8 @@ def main():
         image_dir, seg_dir, train_info_hackathon, dual_output=False
     )
     large_image_splitter(_train_data_hackathon, dirs["cache"])
+
+    balance_training_data(_train_data_hackathon)
 
     # PSUF data
     """psuf_dir = os.path.join(dirs["data"], 'psuf')
