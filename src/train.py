@@ -15,6 +15,7 @@ from monai.transforms import (
     SpatialPadd,
     Activationsd,
     Resized,
+    RandGaussianNoised,
 )
 from transforms import (
     CTWindowd,
@@ -102,8 +103,10 @@ def main():
         scale_range=(0.05, 0.05, 0.0),
         padding_mode="zeros"
     )
+    
     spatial_pad = SpatialPadd(keys=["image"], spatial_size=(-1, -1, 30))
     resize = Resized(keys=["image"], spatial_size=(int(512*0.50), int(512*0.50), -1), mode="trilinear")
+    rand_gaussian_noise = RandGaussianNoised(keys=["image"], prob=0.25)
     
     # Create transforms
     common_transform = Compose([
@@ -120,6 +123,7 @@ def main():
         common_transform,
         rand_axis_flip,
         rand_affine,
+        rand_gaussian_noise,
         ToTensord(keys=["image"]),
     ]).flatten()
     hackathon_valid_transfrom = Compose([
