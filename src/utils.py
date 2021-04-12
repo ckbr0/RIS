@@ -28,18 +28,22 @@ def replace_suffix(string, old_suffix, new_suffix):
 
     return new_string + new_suffix
 
-def get_data_from_info(path_to_images, path_to_segs, info):
+def get_data_from_info(path_to_images, path_to_segs, info, dual_output=False):
     data = []
     for image_name, label in info:
-        if not label: label = -1
+        if label is None: label = -1
         seg_name = replace_suffix(image_name, '.nii.gz', '.nrrd')
         image = os.path.join(path_to_images, image_name)
         if path_to_segs is not None:
             seg = os.path.join(path_to_segs, seg_name)
         else:
             seg = ""
-
-        data.append({'image': image, 'label': np.float32([int(label)]), 'seg': seg})
+        
+        if dual_output:
+            label = (1-label)*np.array([1.0, 0.0], dtype=np.float32) + label*np.array([0.0, 1.0], dtype=np.float32)
+        else:
+            label = np.array([float(label)], dtype=np.float32)
+        data.append({'image': image, 'label': label, 'seg': seg})
     return data
 
 def remove_keymap_conflicts(new_keys_set):
@@ -82,7 +86,7 @@ def next_slice(ax):
     ax.index = (ax.index + 1) % volume.shape[-1]
     ax.images[0].set_array(volume[ :, :, ax.index])
 
-def large_image_splitter(data, cache_dir):
+def large_image_splitter(data, cache_dir, dual_output=False):
     print("Splitting large images...")
     len_old = len(data)
     print("original data len:", len_old)
@@ -94,9 +98,14 @@ def large_image_splitter(data, cache_dir):
             source_image = image['source']
             for i in range(len(data)):
                 if data[i]["image"] == source_image:
+                    source_label = data[i]["label"]
                     del data[i]
                     break
-            data.extend(image["splits"])
+            splits = image["splits"]
+            for s in splits:
+                s['label'] = source_label
+                data.append(s)
+            #data.extend(image["splits"])
 
     if os.path.exists(split_images):
         split_images = np.load(split_images, allow_pickle=True)
