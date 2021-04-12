@@ -36,7 +36,7 @@ from tester import Tester
 from utils import multi_slice_viewer, setup_directories, get_data_from_info, large_image_splitter, calculate_class_imbalance, create_device, balance_training_data
 from test_data_loader import TestDataset
 
-def main():
+def main(train_output):
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
     print_config()
 
@@ -60,7 +60,7 @@ def main():
     )
     large_image_splitter(_train_data_hackathon, dirs["cache"])
 
-    balance_training_data(_train_data_hackathon, seed=72)
+    balance_training_data(_train_data_hackathon)
 
     # PSUF data
     """psuf_dir = os.path.join(dirs["data"], 'psuf')
@@ -70,7 +70,7 @@ def main():
     train_data_psuf = get_data_from_info(image_dir, None, train_info)"""
     # Split data into train, validate and test
     train_split, test_data_hackathon = train_test_split(_train_data_hackathon, test_size=0.2, shuffle=True, random_state=42)
-    train_data_hackathon, valid_data_hackathon = train_test_split(train_split, test_size=0.2, shuffle=True, random_state=43)
+    #train_data_hackathon, valid_data_hackathon = train_test_split(train_split, test_size=0.2, shuffle=True, random_state=43)
     # Setup transforms
 
     # Crop foreground
@@ -85,30 +85,8 @@ def main():
     # Window width and level (window center)
     WW, WL = 1500, -600
     ct_window = CTWindowd(keys=["image"], width=WW, level=WL)
-    # Random variatnon in CT window
-    """rand_WW, rand_WL = 50, 25
-    rand_ct_window = RandCTWindowd(
-        keys=["image"],
-        prob=1.0,
-        width=(WW-rand_WW, WW+rand_WW),
-        level=(rand_WL-25, rand_WL+25)
-    )"""
-    # Random axis flip
-    rand_axis_flip = RandAxisFlipd(keys=["image"], prob=0.1)
-    # Rand affine transform
-    rand_affine = RandAffined(
-        keys=["image"],
-        prob=0.5,
-        rotate_range=(0, 0, np.pi/16),
-        shear_range=(0.05, 0.05, 0.0),
-        translate_range=(0, 0, 0),
-        scale_range=(0.05, 0.05, 0.0),
-        padding_mode="zeros"
-    )
-    
     spatial_pad = SpatialPadd(keys=["image"], spatial_size=(-1, -1, 30))
     resize = Resized(keys=["image"], spatial_size=(int(512*0.50), int(512*0.50), -1), mode="trilinear")
-    rand_gaussian_noise = RandGaussianNoised(keys=["image"], prob=0.25)
     
     # Create transforms
     common_transform = Compose([
@@ -121,14 +99,7 @@ def main():
         crop_z,
         spatial_pad,
     ])
-    hackathon_train_transform = Compose([
-        common_transform,
-        rand_axis_flip,
-        rand_affine,
-        rand_gaussian_noise,
-        ToTensord(keys=["image"]),
-    ]).flatten()
-    hackathon_valid_transfrom = Compose([
+    hackathon_train_transfrom = Compose([
         common_transform,
         ToTensord(keys=["image"]),
     ]).flatten()
@@ -140,25 +111,7 @@ def main():
 
     # Setup data
     #set_determinism(seed=100)
-    train_dataset = PersistentDataset(data=train_data_hackathon[:], transform=hackathon_train_transform, cache_dir=dirs["persistent"])
-    valid_dataset = PersistentDataset(data=valid_data_hackathon[:], transform=hackathon_valid_transfrom, cache_dir=dirs["persistent"])
-    test_dataset = PersistentDataset(data=test_data_hackathon[:], transform=hackathon_valid_transfrom, cache_dir=dirs["persistent"])
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=2,
-        shuffle=True,
-        pin_memory=using_gpu,
-        num_workers=1,
-        collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT)
-    )
-    valid_loader = DataLoader(
-        valid_dataset,
-        batch_size=2,
-        shuffle=True,
-        pin_memory=using_gpu,
-        num_workers=1,
-        collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT)
-    )
+    test_dataset = PersistentDataset(data=test_data_hackathon[:], transform=hackathon_train_transfrom, cache_dir=dirs["persistent"])
     test_loader = DataLoader(
         test_dataset,
         batch_size=2,
@@ -170,58 +123,12 @@ def main():
 
     # Setup network, loss function, optimizer and scheduler
     network = nets.DenseNet121(spatial_dims=3, in_channels=1, out_channels=1).to(device)
-    # pos_weight for class imbalance
-    pos_weight = calculate_class_imbalance(train_info_hackathon).to(device)
-    loss_function = torch.nn.BCEWithLogitsLoss(pos_weight)
-    optimizer = torch.optim.Adam(network.parameters(), lr=1e-5)#, weight_decay=0.001)
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95, last_epoch=-1)
 
     # Setup validator and trainer
     valid_post_transforms = Compose([
         Activationsd(keys="pred", sigmoid=True),
     ])
-    validator = Validator(
-        device=device,
-        val_data_loader=valid_loader,
-        network=network,
-        post_transform=valid_post_transforms,
-        amp=using_gpu,
-        non_blocking=using_gpu
-    )
 
-    trainer = Trainer(
-        device=device,
-        out_dir=dirs["out"],
-        out_name="DenseNet121",
-        max_epochs=120,
-        train_data_loader=train_loader,
-        network=network,
-        optimizer=optimizer,
-        loss_function=loss_function,
-        lr_scheduler=None,
-        validator=validator,
-        amp=using_gpu,
-        non_blocking=using_gpu
-    )
-
-    """x_max, y_max, z_max, size_max = 0, 0, 0, 0
-    for data in train_loader:
-        image = data["image"]
-        label = data["label"]
-        print(label)
-        shape = image.shape
-        x_max = max(x_max, shape[-3])
-        y_max = max(y_max, shape[-2])
-        z_max = max(z_max, shape[-1])
-        size = int(image.nelement()*image.element_size()/1024/1024)
-        size_max = max(size_max, size)
-        print("shape:", shape, "size:", str(size)+"MB")
-        #multi_slice_viewer(image[0, 0, :, :, :], str(label))
-    print(x_max, y_max, z_max, str(size_max)+"MB")"""
-
-    # Run trainer
-    train_output = trainer.run()
-    
     # Setup tester
     load_path = glob(os.path.join(train_output, 'network_key_metric*'))[0]
     tester = Tester(
@@ -238,4 +145,4 @@ def main():
     tester.run()
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1])

@@ -167,8 +167,9 @@ def create_device(device_name):
     device = torch.device(device_name)
     return device, gpu
 
-def balance_training_data(train_info):
-    
+def balance_training_data(train_info, seed=None):
+    random.seed(seed)
+
     file_list = [x for x in train_info if int(x['label'])==1]
     
     for i in range(len(train_info)-2*len(file_list)):

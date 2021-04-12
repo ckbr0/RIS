@@ -104,7 +104,8 @@ class Trainer(SupervisedTrainer):
         )
         self._register_handlers(handlers)
 
-        return super().run()
+        super().run()
+        return self.out_dir
 
     def _iteration(self, engine: Engine, batchdata: Dict[str, torch.Tensor]):
         return super()._iteration(engine, batchdata)
