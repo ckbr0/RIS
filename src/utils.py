@@ -155,21 +155,6 @@ def calculate_class_imbalance(train_info):
 
     return pos_weight
 
-def balance_training_data(train_info):
-    negative, positive = 0, 0
-    for _, label in train_info:
-        if int(label) == 0:
-            negative += 1
-        elif int(label) == 1:
-            positive += 1
-    d = negative-positive
-    file_list = [x for x in train_info if int(x[1])==1]
-    random.shuffle(file_list)
-    for i in range(d):
-        train_info.append(file_list[random.randint(0,len(file_list)-1)])
-    random.shuffle(train_info)
-
-
 def create_device(device_name):
     gpu = False
     if "cuda" in device_name:
@@ -182,4 +167,11 @@ def create_device(device_name):
     device = torch.device(device_name)
     return device, gpu
 
+def balance_training_data(train_info):
     
+    file_list = [x for x in train_info if int(x['label'])==1]
+    random.shuffle(file_list)
+    
+    for i in range(len(train_info)-2*len(file_list)):
+        train_info.append(file_list[random.randint(0,len(file_list)-1)])
+    random.shuffle(train_info)
