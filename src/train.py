@@ -1,6 +1,7 @@
 import sys
 import os
 import logging
+from glob import glob
 import numpy as np
 import torch
 import monai.networks.nets as nets
@@ -31,6 +32,7 @@ from monai.config import print_config
 from sklearn.model_selection import train_test_split
 from trainer import Trainer
 from validator import Validator
+from tester import Tester
 from utils import multi_slice_viewer, setup_directories, get_data_from_info, large_image_splitter, calculate_class_imbalance, create_device, balance_training_data
 from test_data_loader import TestDataset
 
@@ -58,7 +60,7 @@ def main():
     )
     large_image_splitter(_train_data_hackathon, dirs["cache"])
 
-    balance_training_data(_train_data_hackathon)
+    balance_training_data(_train_data_hackathon, seed=72)
 
     # PSUF data
     """psuf_dir = os.path.join(dirs["data"], 'psuf')
@@ -140,6 +142,7 @@ def main():
     #set_determinism(seed=100)
     train_dataset = PersistentDataset(data=train_data_hackathon[:], transform=hackathon_train_transform, cache_dir=dirs["persistent"])
     valid_dataset = PersistentDataset(data=valid_data_hackathon[:], transform=hackathon_valid_transfrom, cache_dir=dirs["persistent"])
+    test_dataset = PersistentDataset(data=test_data_hackathon[:], transform=hackathon_valid_transfrom, cache_dir=dirs["persistent"])
     train_loader = DataLoader(
         train_dataset,
         batch_size=2,
@@ -150,6 +153,14 @@ def main():
     )
     valid_loader = DataLoader(
         valid_dataset,
+        batch_size=2,
+        shuffle=True,
+        pin_memory=using_gpu,
+        num_workers=1,
+        collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT)
+    )
+    test_loader = DataLoader(
+        test_dataset,
         batch_size=2,
         shuffle=True,
         pin_memory=using_gpu,
@@ -209,7 +220,22 @@ def main():
     print(x_max, y_max, z_max, str(size_max)+"MB")"""
 
     # Run trainer
-    trainer.run()
+    train_output = trainer.run()
+    
+    # Setup tester
+    load_path = glob(os.path.join(train_output, 'network_key_metric*'))[0]
+    tester = Tester(
+        device=device,
+        test_data_loader=test_loader,
+        network=network,
+        load_path=load_path,
+        post_transform=valid_post_transforms,
+        non_blocking=using_gpu,
+        amp=using_gpu
+    )
+
+    # Run tester
+    tester.run()
 
 if __name__ == "__main__":
     main()
