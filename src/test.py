@@ -60,7 +60,7 @@ def main(train_output):
     )
     large_image_splitter(_train_data_hackathon, dirs["cache"])
 
-    balance_training_data(_train_data_hackathon)
+    balance_training_data(_train_data_hackathon, seed=72)
 
     # PSUF data
     """psuf_dir = os.path.join(dirs["data"], 'psuf')
