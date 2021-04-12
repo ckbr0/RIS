@@ -130,12 +130,12 @@ def main(train_output):
     ])
 
     # Setup tester
-    load_path = glob(os.path.join(train_output, 'network_key_metric*'))[0]
     tester = Tester(
         device=device,
         test_data_loader=test_loader,
+        load_dir=train_output,
+        out_dir=dirs["out"],
         network=network,
-        load_path=load_path,
         post_transform=valid_post_transforms,
         non_blocking=using_gpu,
         amp=using_gpu
