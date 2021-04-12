@@ -170,8 +170,7 @@ def create_device(device_name):
 def balance_training_data(train_info):
     
     file_list = [x for x in train_info if int(x['label'])==1]
-    random.shuffle(file_list)
     
     for i in range(len(train_info)-2*len(file_list)):
         train_info.append(file_list[random.randint(0,len(file_list)-1)])
-    random.shuffle(train_info)
+
