@@ -55,6 +55,7 @@ def main():
     _train_data_hackathon = get_data_from_info(
         image_dir, seg_dir, train_info_hackathon, dual_output=False
     )
+    large_image_splitter(_train_data_hackathon, dirs["cache"])
     # PSUF data
     """psuf_dir = os.path.join(dirs["data"], 'psuf')
     with open(os.path.join(psuf_dir, "train.txt"), 'r') as fp:
@@ -64,7 +65,6 @@ def main():
     # Split data into train, validate and test
     train_split, test_data_hackathon = train_test_split(_train_data_hackathon, test_size=0.2, shuffle=True, random_state=42)
     train_data_hackathon, valid_data_hackathon = train_test_split(train_split, test_size=0.2, shuffle=True, random_state=43)
-    large_image_splitter(train_data_hackathon, dirs["cache"])
     # Setup transforms
 
     # Crop foreground
@@ -92,7 +92,7 @@ def main():
     # Rand affine transform
     rand_affine = RandAffined(
         keys=["image"],
-        prob=0.25,
+        prob=0.5,
         rotate_range=(0, 0, np.pi/16),
         shear_range=(0.05, 0.05, 0.0),
         translate_range=(0, 0, 0),
@@ -135,7 +135,7 @@ def main():
     valid_dataset = PersistentDataset(data=valid_data_hackathon[:], transform=hackathon_valid_transfrom, cache_dir=dirs["persistent"])
     train_loader = DataLoader(
         train_dataset,
-        batch_size=4,
+        batch_size=2,
         shuffle=True,
         pin_memory=using_gpu,
         num_workers=1,
@@ -143,7 +143,7 @@ def main():
     )
     valid_loader = DataLoader(
         valid_dataset,
-        batch_size=4,
+        batch_size=2,
         shuffle=True,
         pin_memory=using_gpu,
         num_workers=1,
@@ -151,7 +151,7 @@ def main():
     )
 
     # Setup network, loss function, optimizer and scheduler
-    network = nets.DenseNet(spatial_dims=3, in_channels=1, out_channels=1).to(device)
+    network = nets.DenseNet121(spatial_dims=3, in_channels=1, out_channels=1).to(device)
     # pos_weight for class imbalance
     pos_weight = calculate_class_imbalance(train_info_hackathon).to(device)
     loss_function = torch.nn.BCEWithLogitsLoss(pos_weight)
@@ -175,7 +175,7 @@ def main():
         device=device,
         out_dir=dirs["out"],
         out_name="DenseNet121",
-        max_epochs=80,
+        max_epochs=120,
         train_data_loader=train_loader,
         network=network,
         optimizer=optimizer,
@@ -187,7 +187,7 @@ def main():
     )
 
     """x_max, y_max, z_max, size_max = 0, 0, 0, 0
-    for data in valid_loader:
+    for data in train_loader:
         image = data["image"]
         label = data["label"]
         print(label)
@@ -198,7 +198,7 @@ def main():
         size = int(image.nelement()*image.element_size()/1024/1024)
         size_max = max(size_max, size)
         print("shape:", shape, "size:", str(size)+"MB")
-        multi_slice_viewer(image[0, 0, :, :, :], str(label))
+        #multi_slice_viewer(image[0, 0, :, :, :], str(label))
     print(x_max, y_max, z_max, str(size_max)+"MB")"""
 
     # Run trainer
