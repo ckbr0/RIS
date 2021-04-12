@@ -166,9 +166,8 @@ def balance_training_data(train_info, image_dir):
     file_list = [x for x in train_info if int(x[1])==1]
     path = "/home/jupyter/RIS/data/HACKATHON/images/copy"
     os.mkdir(path)
-    path = '/home/jupyter/RIS/data/HACKATHON/images/copy/'
     while(d > 0):
-        shutil.copyfile(image_dir+'/'+file_list[i%len(file_list)][0], path+file_list[i%len(file_list)][0])
+        shutil.copyfile(image_dir+'/'+file_list[i%len(file_list)][0], path+'/'+file_list[i%len(file_list)][0])
         d-=1
         i+=1
 
