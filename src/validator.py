@@ -53,7 +53,7 @@ class Validator(SupervisedEvaluator):
                     save_dir=self.output_dir,
                     save_dict={"network": self.network},
                     save_key_metric=True),
-                #MetricsSaver(save_dir=self.outut_dir, metrics=['Valid_AUC', 'Valid_ACC']),
+                MetricsSaver(save_dir=self.output_dir, metrics=['Valid_AUC', 'Valid_ACC']),
             ]
             self._register_handlers(handlers)
 
