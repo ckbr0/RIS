@@ -110,10 +110,10 @@ def large_image_splitter(data, cache_dir):
         return new_images
 
     if os.path.exists(split_images):
-        split_images = np.load(split_images, allow_pickle=True)
-        for s in split_images:
+        new_images = np.load(split_images, allow_pickle=True)
+        for s in new_images:
             print("split image:", s["source"])
-        out_data = _replace_in_data(split_images)
+        out_data = _replace_in_data(new_images)
     else:
         if not os.path.exists(split_images_dir):
             os.mkdir(split_images_dir)

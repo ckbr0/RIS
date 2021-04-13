@@ -140,7 +140,7 @@ def main():
     test_dataset = PersistentDataset(data=test_data_hackathon[:], transform=hackathon_valid_transfrom, cache_dir=dirs["persistent"])
     train_loader = DataLoader(
         train_dataset,
-        batch_size=1,
+        batch_size=2,
         shuffle=True,
         pin_memory=using_gpu,
         num_workers=1,
@@ -148,7 +148,7 @@ def main():
     )
     valid_loader = DataLoader(
         valid_dataset,
-        batch_size=1,
+        batch_size=2,
         shuffle=True,
         pin_memory=using_gpu,
         num_workers=2,
@@ -156,7 +156,7 @@ def main():
     )
     test_loader = DataLoader(
         test_dataset,
-        batch_size=1,
+        batch_size=2,
         shuffle=True,
         pin_memory=using_gpu,
         num_workers=2,
@@ -203,7 +203,7 @@ def main():
         non_blocking=using_gpu
     )
 
-    """x_max, y_max, z_max, size_max = 0, 0, 0, 0
+    x_max, y_max, z_max, size_max = 0, 0, 0, 0
     for data in valid_loader:
         image = data["image"]
         label = data["label"]
@@ -220,7 +220,7 @@ def main():
         print("shape:", shape, "size:", str(size)+"MB")
         #multi_slice_viewer(image[0, 0, :, :, :], str(label))
     print(x_max, y_max, z_max, str(size_max)+"MB")
-    exit()"""
+    exit()
 
     # Run trainer
     train_output = trainer.run()
