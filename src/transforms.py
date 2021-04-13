@@ -1,21 +1,15 @@
-from typing import Any, Dict, Hashable, Mapping, Optional, Tuple, Union, Sequence, Callable, List
-import itertools
+from typing import Any, Dict, Hashable, Mapping, Optional, Tuple, Sequence
 
 import numpy as np
 import torch
-from monai import transforms
-from monai.transforms import NormalizeIntensityd, MaskIntensityd, SpatialCrop, ScaleIntensityRanged
+import monai.transforms
+from monai.transforms import MaskIntensityd, SpatialCrop, ScaleIntensityRanged
 from monai.transforms.transform import MapTransform, RandomizableTransform
-from monai.transforms.inverse import InvertibleTransform
 from monai.transforms.intensity.array import NormalizeIntensity
-from monai.transforms.croppad.dictionary import SpatialCropd
-#from monai.transforms.utils import generate_spatial_bounding_box
 from monai.config import DtypeLike, KeysCollection
-from monai.utils import NumpyPadMode, ensure_tuple, ensure_tuple_rep, dtype_torch_to_numpy
-from monai.utils.enums import Method
+from monai.utils import dtype_torch_to_numpy
 from monai.data import NumpyReader
 from nrrd_reader import NrrdReader
-import nrrd
 
 def _calc_grey_levels(width, level):
     lower = level - (width / 2)
@@ -29,8 +23,6 @@ class CTWindowd(ScaleIntensityRanged):
         keys: KeysCollection,
         width: int = 1500,
         level: int = -600,
-        nonzero: bool = False,
-        dtype: DtypeLike = np.float32,
         allow_missing_keys: bool = False,
     ) -> None:
         
@@ -136,7 +128,7 @@ class RelativeCropZd(MapTransform):
             d[key] = cropper(d[key])
         return d
 
-class RandGaussianNoised(transforms.RandGaussianNoised):
+class RandGaussianNoised(monai.transforms.RandGaussianNoised):
 
     def __call__(self, data: Mapping[Hashable, np.ndarray]) -> Dict[Hashable, np.ndarray]:
         d = dict(data)
@@ -149,5 +141,6 @@ class RandGaussianNoised(transforms.RandGaussianNoised):
             return d
         for key, noise in self.key_iterator(d, self._noise):
             dtype = dtype_torch_to_numpy(d[key].dtype) if isinstance(d[key], torch.Tensor) else d[key].dtype
-            d[key] = d[key] + (d[key] > 0) * noise.astype(dtype)
+            np.where(d[key]>0, d[key] + noise.astype(dtype), d[key])
         return d
+
