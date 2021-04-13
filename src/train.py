@@ -23,6 +23,7 @@ from transforms import (
     #RandCTWindowd,
     CTSegmentation,
     RelativeCropZd,
+    RandGaussianNoised,
 )
 from monai.data import DataLoader, Dataset, PersistentDataset, CacheDataset
 from monai.transforms.croppad.batch import PadListDataCollate
