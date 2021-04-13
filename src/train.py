@@ -11,16 +11,13 @@ from monai.transforms import (
     CropForegroundd,
     ToTensord,
     RandFlipd,
-    RandAxisFlipd,
     RandAffined,
     SpatialPadd,
     Activationsd,
     Resized,
-    #RandGaussianNoised,
 )
 from transforms import (
     CTWindowd,
-    #RandCTWindowd,
     CTSegmentation,
     RelativeCropZd,
     RandGaussianNoised,
@@ -60,9 +57,6 @@ def main():
         image_dir, seg_dir, train_info_hackathon, dual_output=False
     )
     _train_data_hackathon = large_image_splitter(_train_data_hackathon, dirs["cache"])
-    """for d in _train_data_hackathon:
-        print(d)
-    exit()"""
     balance_training_data(_train_data_hackathon, seed=72)
 
     # PSUF data
@@ -74,6 +68,7 @@ def main():
     # Split data into train, validate and test
     train_split, test_data_hackathon = train_test_split(_train_data_hackathon, test_size=0.2, shuffle=True, random_state=42)
     train_data_hackathon, valid_data_hackathon = train_test_split(train_split, test_size=0.2, shuffle=True, random_state=43)
+    
     # Setup transforms
 
     # Crop foreground
@@ -88,14 +83,6 @@ def main():
     # Window width and level (window center)
     WW, WL = 1500, -600
     ct_window = CTWindowd(keys=["image"], width=WW, level=WL)
-    # Random variatnon in CT window
-    """rand_WW, rand_WL = 50, 25
-    rand_ct_window = RandCTWindowd(
-        keys=["image"],
-        prob=1.0,
-        width=(WW-rand_WW, WW+rand_WW),
-        level=(rand_WL-25, rand_WL+25)
-    )"""
     # Random axis flip
     #rand_axis_flip = RandAxisFlipd(keys=["image"], prob=0.1)
     rand_x_flip = RandFlipd(keys=["image"], spatial_axis=0, prob=0.50)
@@ -153,7 +140,7 @@ def main():
     test_dataset = PersistentDataset(data=test_data_hackathon[:], transform=hackathon_valid_transfrom, cache_dir=dirs["persistent"])
     train_loader = DataLoader(
         train_dataset,
-        batch_size=2,
+        batch_size=1,
         shuffle=True,
         pin_memory=using_gpu,
         num_workers=1,
@@ -169,7 +156,7 @@ def main():
     )
     test_loader = DataLoader(
         test_dataset,
-        batch_size=2,
+        batch_size=1,
         shuffle=True,
         pin_memory=using_gpu,
         num_workers=2,
@@ -222,7 +209,7 @@ def main():
         label = data["label"]
         print()
         print(len(data['image_transforms']))
-        #print(data['image_transforms'])
+        print(data['image_transforms'])
         print(label)
         shape = image.shape
         x_max = max(x_max, shape[-3])
