@@ -1,7 +1,9 @@
 from typing import Any, Dict, Hashable, Mapping, Optional, Tuple, Union, Sequence, Callable, List
 import itertools
+
 import numpy as np
-import monai.transforms
+import torch
+from monai import transforms
 from monai.transforms import NormalizeIntensityd, MaskIntensityd, SpatialCrop, ScaleIntensityRanged
 from monai.transforms.transform import MapTransform, RandomizableTransform
 from monai.transforms.inverse import InvertibleTransform
@@ -9,7 +11,7 @@ from monai.transforms.intensity.array import NormalizeIntensity
 from monai.transforms.croppad.dictionary import SpatialCropd
 #from monai.transforms.utils import generate_spatial_bounding_box
 from monai.config import DtypeLike, KeysCollection
-from monai.utils import NumpyPadMode, ensure_tuple, ensure_tuple_rep
+from monai.utils import NumpyPadMode, ensure_tuple, ensure_tuple_rep, dtype_torch_to_numpy
 from monai.utils.enums import Method
 from monai.data import NumpyReader
 from nrrd_reader import NrrdReader
@@ -134,3 +136,18 @@ class RelativeCropZd(MapTransform):
             d[key] = cropper(d[key])
         return d
 
+class RandGaussianNoised(transforms.RandGaussianNoised):
+
+    def __call__(self, data: Mapping[Hashable, np.ndarray]) -> Dict[Hashable, np.ndarray]:
+        d = dict(data)
+
+        image_shape = d[self.keys[0]].shape  # image shape from the first data key
+        self.randomize(image_shape)
+        if len(self._noise) != len(self.keys):
+            raise AssertionError
+        if not self._do_transform:
+            return d
+        for key, noise in self.key_iterator(d, self._noise):
+            dtype = dtype_torch_to_numpy(d[key].dtype) if isinstance(d[key], torch.Tensor) else d[key].dtype
+            d[key] = d[key] + (d[key] > 0) * noise.astype(dtype)
+        return d

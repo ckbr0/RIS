@@ -16,13 +16,14 @@ from monai.transforms import (
     SpatialPadd,
     Activationsd,
     Resized,
-    RandGaussianNoised,
+    #RandGaussianNoised,
 )
 from transforms import (
     CTWindowd,
     #RandCTWindowd,
     CTSegmentation,
     RelativeCropZd,
+    RandGaussianNoised,
 )
 from monai.data import DataLoader, Dataset, PersistentDataset, CacheDataset
 from monai.transforms.croppad.batch import PadListDataCollate
@@ -58,8 +59,10 @@ def main():
     _train_data_hackathon = get_data_from_info(
         image_dir, seg_dir, train_info_hackathon, dual_output=False
     )
-    large_image_splitter(_train_data_hackathon, dirs["cache"])
-
+    _train_data_hackathon = large_image_splitter(_train_data_hackathon, dirs["cache"])
+    """for d in _train_data_hackathon:
+        print(d)
+    exit()"""
     balance_training_data(_train_data_hackathon, seed=72)
 
     # PSUF data
@@ -95,23 +98,23 @@ def main():
     )"""
     # Random axis flip
     #rand_axis_flip = RandAxisFlipd(keys=["image"], prob=0.1)
-    rand_x_flip = RandFlipd(keys=["image"], spatial_axis=0, prob=0.25)
-    rand_y_flip = RandFlipd(keys=["image"], spatial_axis=1, prob=0.25)
-    rand_z_flip = RandFlipd(keys=["image"], spatial_axis=2, prob=0.25)
+    rand_x_flip = RandFlipd(keys=["image"], spatial_axis=0, prob=0.50)
+    rand_y_flip = RandFlipd(keys=["image"], spatial_axis=1, prob=0.50)
+    rand_z_flip = RandFlipd(keys=["image"], spatial_axis=2, prob=0.50)
     # Rand affine transform
     rand_affine = RandAffined(
         keys=["image"],
         prob=0.5,
-        rotate_range=(0, 0, np.pi/16),
-        shear_range=(0.05, 0.05, 0.0),
+        rotate_range=(0, 0, np.pi/12),
+        shear_range=(0.07, 0.07, 0.0),
         translate_range=(0, 0, 0),
-        scale_range=(0.05, 0.05, 0.0),
+        scale_range=(0.07, 0.07, 0.0),
         padding_mode="zeros"
     )
     
     spatial_pad = SpatialPadd(keys=["image"], spatial_size=(-1, -1, 30))
     resize = Resized(keys=["image"], spatial_size=(int(512*0.50), int(512*0.50), -1), mode="trilinear")
-    rand_gaussian_noise = RandGaussianNoised(keys=["image"], prob=0.25)
+    rand_gaussian_noise = RandGaussianNoised(keys=["image"], prob=0.25, mean=0.0, std=0.05)
     
     # Create transforms
     common_transform = Compose([
@@ -158,10 +161,10 @@ def main():
     )
     valid_loader = DataLoader(
         valid_dataset,
-        batch_size=2,
+        batch_size=1,
         shuffle=True,
         pin_memory=using_gpu,
-        num_workers=1,
+        num_workers=2,
         collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT)
     )
     test_loader = DataLoader(
@@ -169,12 +172,13 @@ def main():
         batch_size=2,
         shuffle=True,
         pin_memory=using_gpu,
-        num_workers=1,
+        num_workers=2,
         collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT)
     )
 
     # Setup network, loss function, optimizer and scheduler
-    network = nets.DenseNet121(spatial_dims=3, in_channels=1, out_channels=1).to(device)
+    #network = nets.EfficientNetBN(model_name="efficientnet-b0", spatial_dims=3, in_channels=1, num_classes=1).to(device)
+    network = nets.DenseNet169(spatial_dims=3, in_channels=1, out_channels=1).to(device)
     # pos_weight for class imbalance
     pos_weight = calculate_class_imbalance(train_info_hackathon).to(device)
     loss_function = torch.nn.BCEWithLogitsLoss(pos_weight)
@@ -184,6 +188,7 @@ def main():
     # Setup validator and trainer
     valid_post_transforms = Compose([
         Activationsd(keys="pred", sigmoid=True),
+        #Activationsd(keys="pred", softmax=True),
     ])
     validator = Validator(
         device=device,
@@ -197,8 +202,10 @@ def main():
     trainer = Trainer(
         device=device,
         out_dir=dirs["out"],
-        out_name="DenseNet121",
-        max_epochs=1,
+        out_name="DenseNet169",
+        max_epochs=120,
+        validation_epoch = 30,
+        validation_interval = 1,
         train_data_loader=train_loader,
         network=network,
         optimizer=optimizer,
@@ -210,9 +217,12 @@ def main():
     )
 
     """x_max, y_max, z_max, size_max = 0, 0, 0, 0
-    for data in train_loader:
+    for data in valid_loader:
         image = data["image"]
         label = data["label"]
+        print()
+        print(len(data['image_transforms']))
+        #print(data['image_transforms'])
         print(label)
         shape = image.shape
         x_max = max(x_max, shape[-3])
@@ -222,7 +232,8 @@ def main():
         size_max = max(size_max, size)
         print("shape:", shape, "size:", str(size)+"MB")
         #multi_slice_viewer(image[0, 0, :, :, :], str(label))
-    print(x_max, y_max, z_max, str(size_max)+"MB")"""
+    print(x_max, y_max, z_max, str(size_max)+"MB")
+    exit()"""
 
     # Run trainer
     train_output = trainer.run()

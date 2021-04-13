@@ -38,7 +38,7 @@ class Tester(SupervisedEvaluator):
                 "Test_AUC": ROCAUC(output_transform=lambda x: (x["pred"], x["label"]))
             },
             additional_metrics={
-                "Test_Accuracy": Accuracy(output_transform=lambda x:(AsDiscrete(threshold_values=True)(x["pred"]), x["label"]))
+                "Test_ACC": Accuracy(output_transform=lambda x:(AsDiscrete(threshold_values=True)(x["pred"]), x["label"]))
             },
             amp=amp,
             mode=mode
