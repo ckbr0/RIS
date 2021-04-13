@@ -2,7 +2,7 @@ from typing import Any, Dict, Hashable, Mapping, Optional, Tuple, Union, Sequenc
 import itertools
 import numpy as np
 import monai.transforms
-from monai.transforms import NormalizeIntensityd, MaskIntensityd, SpatialCrop, ScaleIntensityRanged
+from monai.transforms import NormalizeIntensityd, MaskIntensityd, SpatialCrop, ScaleIntensityRanged, RandGaussianNoised
 from monai.transforms.transform import MapTransform, RandomizableTransform
 from monai.transforms.inverse import InvertibleTransform
 from monai.transforms.intensity.array import NormalizeIntensity
@@ -14,6 +14,9 @@ from monai.utils.enums import Method
 from monai.data import NumpyReader
 from nrrd_reader import NrrdReader
 import nrrd
+
+import torch
+from monai.utils import dtype_torch_to_numpy
 
 def _calc_grey_levels(width, level):
     lower = level - (width / 2)
@@ -132,5 +135,24 @@ class RelativeCropZd(MapTransform):
             roi_end = np.array([orig_size[0], orig_size[1], z_top])
             cropper = SpatialCrop(roi_start=roi_start, roi_end=roi_end)
             d[key] = cropper(d[key])
+        return d
+
+class RandGaussianNoised(monai.transforms.RandGaussianNoised):
+    def __init__(self, keys: KeysCollection, prob: float = 0.1, mean: Union[Sequence[float], float] = 0.0, std: float = 0.1, allow_missing_keys: bool = False,) -> None:
+        super().__init__(keys, prob, allow_missing_keys=allow_missing_keys)
+
+    def __call__(self, data: Mapping[Hashable, np.ndarray]) -> Dict[Hashable, np.ndarray]:
+        d = dict(data)
+        
+        image_shape = d[self.keys[0]].shape  # image shape from the first data key
+        self.randomize(image_shape)
+        if len(self._noise) != len(self.keys):
+            raise AssertionError
+        if not self._do_transform:
+            return d
+        
+        for key, noise in self.key_iterator(d, self._noise):
+            dtype = dtype_torch_to_numpy(d[key].dtype) if isinstance(d[key], torch.Tensor) else d[key].dtype
+            np.where(d[key]>0, d[key] + noise.astype(dtype), d[key])
         return d
 
