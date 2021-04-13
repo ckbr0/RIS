@@ -84,7 +84,6 @@ def main():
     WW, WL = 1500, -600
     ct_window = CTWindowd(keys=["image"], width=WW, level=WL)
     # Random axis flip
-    #rand_axis_flip = RandAxisFlipd(keys=["image"], prob=0.1)
     rand_x_flip = RandFlipd(keys=["image"], spatial_axis=0, prob=0.50)
     rand_y_flip = RandFlipd(keys=["image"], spatial_axis=1, prob=0.50)
     rand_z_flip = RandFlipd(keys=["image"], spatial_axis=2, prob=0.50)
@@ -98,9 +97,10 @@ def main():
         scale_range=(0.07, 0.07, 0.0),
         padding_mode="zeros"
     )
-    
+    # Pad image to have hight at least 30
     spatial_pad = SpatialPadd(keys=["image"], spatial_size=(-1, -1, 30))
     resize = Resized(keys=["image"], spatial_size=(int(512*0.50), int(512*0.50), -1), mode="trilinear")
+    # Apply Gaussian noise
     rand_gaussian_noise = RandGaussianNoised(keys=["image"], prob=0.25, mean=0.0, std=0.05)
     
     # Create transforms
@@ -169,7 +169,7 @@ def main():
     # pos_weight for class imbalance
     pos_weight = calculate_class_imbalance(train_info_hackathon).to(device)
     loss_function = torch.nn.BCEWithLogitsLoss(pos_weight)
-    optimizer = torch.optim.Adam(network.parameters(), lr=1e-5)#, weight_decay=0.001)
+    optimizer = torch.optim.Adam(network.parameters(), lr=1e-5, weight_decay=0)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95, last_epoch=-1)
 
     # Setup validator and trainer
