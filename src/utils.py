@@ -1,4 +1,5 @@
 import os
+import shutil
 from collections import defaultdict
 
 import numpy as np
@@ -169,11 +170,26 @@ def calculate_class_imbalance(train_info):
 
     return pos_weight
 
-def balance_training_data(train_info, seed=None):
+def balance_training_data(train_info, cache_dir, seed=None):
     random.seed(seed)
 
-    file_list = [x for x in train_info if int(x['_label'])==1]
-    
+    copy_dir = os.path.join(cache_dir, 'copied_images')
+    copy_list = os.path.join(copy_dir, 'copied_images.npy')
+    if not os.path.exists(copy_dir):
+        os.mkdir(copy_dir)
+
+    if not os.path.exists(copy_list):
+        print("copying images...")
+        file_list = [x for x in train_info if int(x['_label'])==1]
+        for f in file_list:
+            original_image_path = f['image']
+            basename = os.path.basename(original_image_path)
+            f['image'] = os.path.join(copy_dir, basename)
+            shutil.copy(original_image_path, f['image'])
+        print("copied images:", len(file_list))
+        np.save(copy_list, file_list)
+
+    file_list = np.load(copy_list, allow_pickle=True)
     for i in range(len(train_info)-2*len(file_list)):
         train_info.append(file_list[random.randint(0,len(file_list)-1)])
 
