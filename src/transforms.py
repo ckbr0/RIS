@@ -11,6 +11,9 @@ from monai.utils import dtype_torch_to_numpy
 from monai.data import NumpyReader
 from nrrd_reader import NrrdReader
 
+import torch
+from monai.utils import dtype_torch_to_numpy
+
 def _calc_grey_levels(width, level):
     lower = level - (width / 2)
     upper = level + (width / 2)
@@ -132,7 +135,7 @@ class RandGaussianNoised(monai.transforms.RandGaussianNoised):
 
     def __call__(self, data: Mapping[Hashable, np.ndarray]) -> Dict[Hashable, np.ndarray]:
         d = dict(data)
-
+        
         image_shape = d[self.keys[0]].shape  # image shape from the first data key
         self.randomize(image_shape)
         if len(self._noise) != len(self.keys):
@@ -143,4 +146,3 @@ class RandGaussianNoised(monai.transforms.RandGaussianNoised):
             dtype = dtype_torch_to_numpy(d[key].dtype) if isinstance(d[key], torch.Tensor) else d[key].dtype
             np.where(d[key]>0, d[key] + noise.astype(dtype), d[key])
         return d
-
