@@ -32,7 +32,7 @@ from sklearn.model_selection import train_test_split
 from trainer import Trainer
 from validator import Validator
 from tester import Tester
-from utils import multi_slice_viewer, setup_directories, get_data_from_info, large_image_splitter, calculate_class_imbalance, create_device, balance_training_data
+from utils import multi_slice_viewer, setup_directories, get_data_from_info, large_image_splitter, calculate_class_imbalance, create_device, balance_training_data, balance_training_data2, transform_and_copy
 from test_data_loader import TestDataset
 
 def main():
@@ -58,7 +58,9 @@ def main():
         image_dir, seg_dir, train_info_hackathon, dual_output=False
     )
     _train_data_hackathon = large_image_splitter(_train_data_hackathon, dirs["cache"])
-
+    copy_list = transform_and_copy(_train_data_hackathon, dirs['cache'])
+    balance_training_data2(_train_data_hackathon, copy_list, seed=72)
+    
     # PSUF data
     """psuf_dir = os.path.join(dirs["data"], 'psuf')
     with open(os.path.join(psuf_dir, "train.txt"), 'r') as fp:
@@ -179,8 +181,8 @@ def main():
     # Setup network, loss function, optimizer and scheduler
     network = nets.DenseNet121(spatial_dims=3, in_channels=1, out_channels=1).to(device)
     # pos_weight for class imbalance
-    pos_weight = 1#calculate_class_imbalance(train_data_hackathon)
-    pos_weight = torch.Tensor([pos_weight]).to(device)
+    _, n, p = calculate_class_imbalance(train_data_hackathon)
+    pos_weight = torch.Tensor([n, p]).to(device)
     loss_function = torch.nn.BCEWithLogitsLoss(pos_weight)
     optimizer = torch.optim.Adam(network.parameters(), lr=1e-4, weight_decay=0)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95, last_epoch=-1)

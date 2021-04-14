@@ -1,13 +1,15 @@
 import os
 import shutil
 from collections import defaultdict
+from nrrd import reader
 
 import numpy as np
 import nrrd
-from monai.transforms import LoadImage, SaveImage
+from monai.transforms import Compose, LoadImage, RandFlip, RandAffine, AddChannel, SqueezeDim, MaskIntensity
 from monai.data.nifti_writer import write_nifti
 import torch
 import random
+from nrrd_reader import NrrdReader
 
 import matplotlib.pyplot as plt
 
@@ -112,8 +114,8 @@ def large_image_splitter(data, cache_dir):
 
     if os.path.exists(split_images):
         new_images = np.load(split_images, allow_pickle=True)
-        for s in new_images:
-            print("split image:", s["source"])
+        """for s in new_images:
+            print("split image:", s["source"], end='\r')"""
         out_data = _replace_in_data(new_images)
     else:
         if not os.path.exists(split_images_dir):
@@ -126,7 +128,7 @@ def large_image_splitter(data, cache_dir):
             z_len = image_data.shape[2]
             if z_len > 200:
                 count = z_len // 80
-                print("splitting image:", image["image"], f"into {count} parts", "shape:", image_data.shape)
+                print("splitting image:", image["image"], f"into {count} parts", "shape:", image_data.shape, end='\r')
                 split_image_list = [image_data[:, :, idz::count] for idz in range(count)]
                 split_seg_list = [seg_data[:, :, idz::count] for idz in range(count)]
                 new_image = { 'source': image["image"], 'splits': [] }
@@ -169,7 +171,7 @@ def calculate_class_imbalance(data):
             positive += 1
     pos_weight = (negative/positive)
 
-    return pos_weight
+    return pos_weight, negative, positive
 
 def balance_training_data(train_info, seed=None):
     random.seed(seed)
@@ -178,3 +180,80 @@ def balance_training_data(train_info, seed=None):
     for i in range(len(train_info)-2*len(file_list)):
         train_info.append(file_list[random.randint(0,len(file_list)-1)])
 
+def transform_and_copy(data, cahce_dir):
+    copy_dir = os.path.join(cahce_dir, 'copied_images')
+    if not os.path.exists(copy_dir):
+        os.mkdir(copy_dir)
+    copy_list_path = os.path.join(copy_dir, 'copied_images.npy')
+    if not os.path.exists(copy_list_path):
+        print("transforming and copying images...")
+        imageLoader = LoadImage()
+        to_copy_list = [x for x in data if int(x['_label'])==1]
+        mul = int(len(data)/len(to_copy_list) - 1)
+
+        rand_x_flip = RandFlip(spatial_axis=0, prob=0.50)
+        rand_y_flip = RandFlip(spatial_axis=1, prob=0.50)
+        rand_z_flip = RandFlip(spatial_axis=2, prob=0.50)
+        rand_affine = RandAffine(
+            prob=1.0,
+            rotate_range=(0, 0, np.pi/10),
+            shear_range=(0.1, 0.1, 0.0),
+            translate_range=(0, 0, 0),
+            scale_range=(0.1, 0.1, 0.0),
+            padding_mode="zeros"
+        )
+        transform = Compose([
+            AddChannel(),
+            rand_x_flip,
+            rand_y_flip,
+            rand_z_flip,
+            rand_affine,
+            SqueezeDim(),
+        ])
+        copy_list = []
+        n = len(to_copy_list)
+        for i in range(len(to_copy_list)):
+            print(f'Copying image {i+1}/{n}', end = "\r")
+            to_copy = to_copy_list[i]
+            image_file = to_copy['image']
+            _image_file = replace_suffix(image_file, '.nii.gz', '')
+            label = to_copy['label']
+            _label = to_copy['_label']
+            image_data, _ = imageLoader(image_file)
+            seg_file = to_copy['seg']
+            seg_data, _ = nrrd.read(seg_file)
+
+            for i in range(mul):
+                rand_seed = np.random.randint(1e8)
+                transform.set_random_state(seed=rand_seed)
+                new_image_data = np.array(transform(image_data))
+                transform.set_random_state(seed=rand_seed)
+                new_seg_data = np.array(transform(seg_data))
+                #multi_slice_viewer(image_data, image_file)
+                #multi_slice_viewer(seg_data, seg_file)
+                #seg_image = MaskIntensity(seg_data)(image_data)
+                #multi_slice_viewer(seg_image, seg_file)
+                image_basename = os.path.basename(_image_file)
+                seg_basename = image_basename + f'_seg_{i}.nrrd'
+                image_basename = image_basename + f'_{i}.nii.gz'
+                
+                new_image_file = os.path.join(copy_dir, image_basename)
+                write_nifti(new_image_data, new_image_file, resample=False)
+                new_seg_file = os.path.join(copy_dir, seg_basename)
+                nrrd.write(new_seg_file, new_seg_data)
+                copy_list.append({'image': new_image_file, 'seg': new_seg_file, 'label': label, '_label': _label})
+
+        np.save(copy_list_path, copy_list)
+        print("done transforming and copying!")
+
+    copy_list = np.load(copy_list_path, allow_pickle=True)
+    return copy_list
+
+def balance_training_data2(data, copies, seed=None):
+    random.seed(seed)
+
+    random.shuffle(copies)
+    _, n, p = calculate_class_imbalance(data)
+    x = n - p
+
+    data.extend(copies[:x])
