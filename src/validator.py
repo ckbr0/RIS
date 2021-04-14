@@ -37,7 +37,7 @@ class Validator(SupervisedEvaluator):
                 "Valid_AUC": ROCAUC(output_transform=lambda x: (x["pred"], x["label"]))
             },
             additional_metrics={
-                "Valid_Accuracy": Accuracy(output_transform=lambda x:(AsDiscrete(threshold_values=True)(x["pred"]), x["label"]))
+                "Valid_ACC": Accuracy(output_transform=lambda x:(AsDiscrete(threshold_values=True)(x["pred"]), x["label"]))
             },
             amp=amp,
             mode=mode

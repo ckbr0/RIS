@@ -3,3 +3,4 @@ matplotlib
 monai-weekly[nibabel, tensorboard, ignite]
 pynrrd
 scikit-learn
+https://github.com/ufoym/imbalanced-dataset-sampler/archive/master.zip

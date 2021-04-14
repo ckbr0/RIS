@@ -13,8 +13,7 @@ class ValidationHandler(monai.handlers.ValidationHandler):
 
     def attach(self, engine) -> None:
         
-        event_filter = lambda engine, event: True if (event >= self.start and (event-self.start) % self.interval == 0) else False
-
+        event_filter = lambda engine, event: True if (event >= (self.start-1) and (event-self.start) % self.interval == 0) else False
         if self.epoch_level:
             engine.add_event_handler(Events.EPOCH_COMPLETED(event_filter=event_filter), self)
         else:
