@@ -23,6 +23,7 @@ from transforms import (
     RandGaussianNoised,
 )
 from monai.data import DataLoader, Dataset, PersistentDataset, CacheDataset
+from torchsampler import ImbalancedDatasetSampler
 from monai.transforms.croppad.batch import PadListDataCollate
 from monai.utils import NumpyPadMode, set_determinism
 from monai.utils.enums import Method
@@ -57,7 +58,6 @@ def main():
         image_dir, seg_dir, train_info_hackathon, dual_output=False
     )
     _train_data_hackathon = large_image_splitter(_train_data_hackathon, dirs["cache"])
-    balance_training_data(_train_data_hackathon, seed=72)
 
     # PSUF data
     """psuf_dir = os.path.join(dirs["data"], 'psuf')
@@ -69,6 +69,9 @@ def main():
     train_split, test_data_hackathon = train_test_split(_train_data_hackathon, test_size=0.2, shuffle=True, random_state=42)
     train_data_hackathon, valid_data_hackathon = train_test_split(train_split, test_size=0.2, shuffle=True, random_state=43)
     
+    #balance_training_data(train_data_hackathon, seed=72)
+    #balance_training_data(valid_data_hackathon, seed=73)
+    #balance_training_data(test_data_hackathon, seed=74)
     # Setup transforms
 
     # Crop foreground
@@ -76,7 +79,7 @@ def main():
         keys=["image"],
         source_key="image",
         margin=(5, 5, 0),
-        #select_fn = lambda x: x != 0
+        select_fn = lambda x: x != 0
     )
     # Crop Z
     crop_z = RelativeCropZd(keys=["image"], relative_z_roi=(0.07, 0.12))
@@ -101,7 +104,7 @@ def main():
     spatial_pad = SpatialPadd(keys=["image"], spatial_size=(-1, -1, 30))
     resize = Resized(keys=["image"], spatial_size=(int(512*0.50), int(512*0.50), -1), mode="trilinear")
     # Apply Gaussian noise
-    rand_gaussian_noise = RandGaussianNoised(keys=["image"], prob=0.25, mean=0.0, std=0.05)
+    rand_gaussian_noise = RandGaussianNoised(keys=["image"], prob=0.25, mean=0.0, std=0.1)
     
     # Create transforms
     common_transform = Compose([
@@ -125,6 +128,14 @@ def main():
     ]).flatten()
     hackathon_valid_transfrom = Compose([
         common_transform,
+        #rand_x_flip,
+        #rand_y_flip,
+        #rand_z_flip,
+        #rand_affine,
+        ToTensord(keys=["image"]),
+    ]).flatten()
+    hackathon_test_transfrom = Compose([
+        common_transform,
         ToTensord(keys=["image"]),
     ]).flatten()
     psuf_transforms = Compose([
@@ -137,39 +148,41 @@ def main():
     #set_determinism(seed=100)
     train_dataset = PersistentDataset(data=train_data_hackathon[:], transform=hackathon_train_transform, cache_dir=dirs["persistent"])
     valid_dataset = PersistentDataset(data=valid_data_hackathon[:], transform=hackathon_valid_transfrom, cache_dir=dirs["persistent"])
-    test_dataset = PersistentDataset(data=test_data_hackathon[:], transform=hackathon_valid_transfrom, cache_dir=dirs["persistent"])
+    test_dataset = PersistentDataset(data=test_data_hackathon[:], transform=hackathon_test_transfrom, cache_dir=dirs["persistent"])
     train_loader = DataLoader(
         train_dataset,
-        batch_size=2,
-        shuffle=True,
+        batch_size=4,
+        #shuffle=True,
         pin_memory=using_gpu,
-        num_workers=1,
+        num_workers=2,
+        sampler=ImbalancedDatasetSampler(train_data_hackathon, callback_get_label=lambda x, i: x[i]['_label']),
         collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT)
     )
     valid_loader = DataLoader(
         valid_dataset,
-        batch_size=2,
-        shuffle=True,
+        batch_size=4,
+        shuffle=False,
         pin_memory=using_gpu,
         num_workers=2,
+        sampler=ImbalancedDatasetSampler(valid_data_hackathon, callback_get_label=lambda x, i: x[i]['_label']),
         collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT)
     )
     test_loader = DataLoader(
         test_dataset,
-        batch_size=2,
-        shuffle=True,
+        batch_size=4,
+        shuffle=False,
         pin_memory=using_gpu,
         num_workers=2,
         collate_fn=PadListDataCollate(Method.SYMMETRIC, NumpyPadMode.CONSTANT)
     )
 
     # Setup network, loss function, optimizer and scheduler
-    #network = nets.EfficientNetBN(model_name="efficientnet-b0", spatial_dims=3, in_channels=1, num_classes=1).to(device)
-    network = nets.DenseNet169(spatial_dims=3, in_channels=1, out_channels=1).to(device)
+    network = nets.DenseNet121(spatial_dims=3, in_channels=1, out_channels=1).to(device)
     # pos_weight for class imbalance
-    pos_weight = calculate_class_imbalance(train_info_hackathon).to(device)
+    pos_weight = 1#calculate_class_imbalance(train_data_hackathon)
+    pos_weight = torch.Tensor([pos_weight]).to(device)
     loss_function = torch.nn.BCEWithLogitsLoss(pos_weight)
-    optimizer = torch.optim.Adam(network.parameters(), lr=1e-5, weight_decay=0)
+    optimizer = torch.optim.Adam(network.parameters(), lr=1e-4, weight_decay=0)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95, last_epoch=-1)
 
     # Setup validator and trainer
@@ -189,9 +202,9 @@ def main():
     trainer = Trainer(
         device=device,
         out_dir=dirs["out"],
-        out_name="DenseNet169",
+        out_name="DenseNet121",
         max_epochs=120,
-        validation_epoch = 30,
+        validation_epoch = 1,
         validation_interval = 1,
         train_data_loader=train_loader,
         network=network,
@@ -203,13 +216,13 @@ def main():
         non_blocking=using_gpu
     )
 
-    x_max, y_max, z_max, size_max = 0, 0, 0, 0
+    """x_max, y_max, z_max, size_max = 0, 0, 0, 0
     for data in valid_loader:
         image = data["image"]
         label = data["label"]
         print()
         print(len(data['image_transforms']))
-        print(data['image_transforms'])
+        #print(data['image_transforms'])
         print(label)
         shape = image.shape
         x_max = max(x_max, shape[-3])
@@ -220,7 +233,7 @@ def main():
         print("shape:", shape, "size:", str(size)+"MB")
         #multi_slice_viewer(image[0, 0, :, :, :], str(label))
     print(x_max, y_max, z_max, str(size_max)+"MB")
-    exit()
+    exit()"""
 
     # Run trainer
     train_output = trainer.run()

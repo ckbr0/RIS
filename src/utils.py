@@ -159,37 +159,22 @@ def create_device(device_name):
     device = torch.device(device_name)
     return device, gpu
 
-def calculate_class_imbalance(train_info):
+def calculate_class_imbalance(data):
     negative, positive = 0, 0
-    for _, label in train_info:
+    for d in data:
+        label = d['_label']
         if int(label) == 0:
             negative += 1
         elif int(label) == 1:
             positive += 1
-    pos_weight = torch.Tensor([(negative/positive)])
+    pos_weight = (negative/positive)
 
     return pos_weight
 
-def balance_training_data(train_info, cache_dir, seed=None):
+def balance_training_data(train_info, seed=None):
     random.seed(seed)
 
-    copy_dir = os.path.join(cache_dir, 'copied_images')
-    copy_list = os.path.join(copy_dir, 'copied_images.npy')
-    if not os.path.exists(copy_dir):
-        os.mkdir(copy_dir)
-
-    if not os.path.exists(copy_list):
-        print("copying images...")
-        file_list = [x for x in train_info if int(x['_label'])==1]
-        for f in file_list:
-            original_image_path = f['image']
-            basename = os.path.basename(original_image_path)
-            f['image'] = os.path.join(copy_dir, basename)
-            shutil.copy(original_image_path, f['image'])
-        print("copied images:", len(file_list))
-        np.save(copy_list, file_list)
-
-    file_list = np.load(copy_list, allow_pickle=True)
+    file_list = [x for x in train_info if int(x['_label'])==1]
     for i in range(len(train_info)-2*len(file_list)):
         train_info.append(file_list[random.randint(0,len(file_list)-1)])
 
