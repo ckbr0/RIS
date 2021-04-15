@@ -250,14 +250,13 @@ def transform_and_copy(data, cahce_dir):
     copy_list = np.load(copy_list_path, allow_pickle=True)
     return copy_list
 
-def balance_training_data2(data, copies, seed=None):
+def balance_training_data2(data, copies, seed=None, ratio):
     random.seed(seed)
 
     random.shuffle(copies)
     _, n, p = calculate_class_imbalance(data)
-    x = n - p
-
-    data.extend(copies[:x])
+    #x = n - p
+    data.extend(copies[:n*ratio-p])
 
 def convert_labels(data, dtype=np.float32, as_array=True):
     for d in data:
