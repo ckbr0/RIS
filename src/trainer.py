@@ -82,7 +82,7 @@ class Trainer(SupervisedTrainer):
             self.validator.summary_writer = self.summary_writer
 
         handlers = [
-            #MetricLogger(self.output_dir, validator=self.validator),
+            MetricLogger(self.output_dir, validator=self.validator),
             ValidationHandler(
                 validator=self.validator,
                 start=self.validation_epoch,

@@ -32,7 +32,7 @@ def replace_suffix(string, old_suffix, new_suffix):
 
     return new_string + new_suffix
 
-def get_data_from_info(path_to_images, path_to_segs, info, dual_output=False):
+def get_data_from_info(path_to_images, path_to_segs, info):
     data = []
     for image_name, _label in info:
         seg_name = replace_suffix(image_name, '.nii.gz', '.nrrd')
@@ -42,11 +42,12 @@ def get_data_from_info(path_to_images, path_to_segs, info, dual_output=False):
         else:
             seg = ""
        
+        dual_output = False
         if _label is not None:
             if dual_output:
-                label = (1-_label)*np.array([1.0, 0.0], dtype=np.float32) + _label*np.array([0.0, 1.0], dtype=np.float32)
+                label = (1-_label)*np.array([1, 0], dtype=np.float) + _label*np.array([0, 1], dtype=np.float)
             else:
-                label = np.array([float(_label)], dtype=np.float32)
+                label = np.array([_label], dtype=np.float)
             data.append({'image': image, 'label': label, '_label': _label, 'seg': seg})
         else:
             data.append({'image': image, 'seg': seg})
@@ -257,3 +258,12 @@ def balance_training_data2(data, copies, seed=None):
     x = n - p
 
     data.extend(copies[:x])
+
+def convert_labels(data, dtype=np.float32, as_array=True):
+    for d in data:
+        #_label = d['label']
+        #d['label'] = (1-_label)*np.array([1, 0], dtype=np.float) + _label*np.array([0, 1], dtype=np.float)
+        if not as_array:
+            d['label'] = d['label'].astype(dtype).item()
+        else:
+            d['label'] = d['label'].astype(dtype)

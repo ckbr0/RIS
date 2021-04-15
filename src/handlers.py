@@ -13,7 +13,7 @@ class ValidationHandler(monai.handlers.ValidationHandler):
 
     def attach(self, engine) -> None:
         
-        event_filter = lambda engine, event: True if (event >= (self.start-1) and (event-self.start) % self.interval == 0) else False
+        event_filter = lambda engine, event: True if (event >= (self.start) and (event-self.start) % self.interval == 0) else False
         if self.epoch_level:
             engine.add_event_handler(Events.EPOCH_COMPLETED(event_filter=event_filter), self)
         else:
@@ -30,24 +30,26 @@ class MetricLogger(monai.handlers.MetricLogger):
         engine.add_event_handler(Events.COMPLETED, self.write_log)
 
     def __call__(self, engine: Engine) -> None:
-        super().__call__(engine)        
-        loss_file = os.path.join(self.log_dir, "log_loss.txt")
+        super().__call__(engine)
+        loss_file = os.path.join(self.log_dir, "_log_loss.txt")
         with self.lock:
             with open(loss_file, "a") as f:
-                np.savetxt(f, self.loss)
+                np.savetxt(f, self.loss[-1], newline=",")
+                f.write('\n')
     
     def log_metrics(self, engine: Engine) -> None:
         super().log_metrics(engine)
         with self.lock:
-            for m, v in self.metrics:
-                m_file = os.path.join(self.log_dir, f"log_{m}.txt")
+            for m, v in self.metrics.items():
+                m_file = os.path.join(self.log_dir, f"_log_{m}.txt")
                 with open(m_file, "a") as f:
-                    np.savetxt(f, v)
+                    np.savetxt(f, v[-1], newline=",")
+                    f.write('\n')
 
     def write_log(self, engine: Engine):
         loss_file = os.path.join(self.log_dir, "log_loss.txt")
         np.savetxt(loss_file, self.loss)
         
-        for m, v in sefl.metrics:
+        for m, v in self.metrics.items():
             m_file = os.path.join(self.log_dir, f"log_{m}.txt")
             np.savetxt(m_file, v)

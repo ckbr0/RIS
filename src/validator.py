@@ -5,11 +5,11 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from torch.utils.data import DataLoader
 from ignite.engine import Engine
-from ignite.metrics import Accuracy
+from ignite.metrics import Accuracy, EpochMetric, Loss
 from monai.engines import SupervisedEvaluator
 from monai.transforms import Transform, AsDiscrete
 from monai.utils import ForwardMode
-from monai.handlers import TensorBoardStatsHandler, CheckpointSaver, StatsHandler, MetricsSaver, ROCAUC
+from monai.handlers import TensorBoardStatsHandler, CheckpointSaver, StatsHandler, MetricsSaver, ROCAUC, EarlyStopHandler
 
 class Validator(SupervisedEvaluator):
 
@@ -18,6 +18,8 @@ class Validator(SupervisedEvaluator):
         device: torch.device,
         val_data_loader: Union[Iterable, DataLoader],
         network: torch.nn.Module,
+        loss_function,
+        patience = 20,
         summary_writer: SummaryWriter = None,
         non_blocking: bool = False,
         post_transform: Optional[Transform] = None,
@@ -25,6 +27,7 @@ class Validator(SupervisedEvaluator):
         mode: Union[ForwardMode, str] = ForwardMode.EVAL,
         ) -> None:
         self.summary_writer = summary_writer
+        self.early_stop_handler = EarlyStopHandler(patience=patience, score_function=lambda enigne: engine.state.metrics[engine.state.key_metric_name])
 
         super().__init__(
             device,
@@ -37,7 +40,8 @@ class Validator(SupervisedEvaluator):
                 "Valid_AUC": ROCAUC(output_transform=lambda x: (x["pred"], x["label"]))
             },
             additional_metrics={
-                "Valid_ACC": Accuracy(output_transform=lambda x:(AsDiscrete(threshold_values=True)(x["pred"]), x["label"]))
+                "Valid_ACC": Accuracy(output_transform=lambda x: (AsDiscrete(threshold_values=True)(x["pred"]), x["label"])),
+                "Valid_Loss": Loss(loss_fn=loss_function, output_transform=lambda x: (x["pred"], x["label"]))
             },
             amp=amp,
             mode=mode
@@ -47,13 +51,14 @@ class Validator(SupervisedEvaluator):
         
         if global_epoch == 1:
             handlers = [
-                StatsHandler(output_transform=lambda x: None),
-                TensorBoardStatsHandler(summary_writer=self.summary_writer, output_transform=lambda x: None),
+                StatsHandler(),
+                TensorBoardStatsHandler(summary_writer=self.summary_writer),#, output_transform=lambda x: None),
                 CheckpointSaver(
                     save_dir=self.output_dir,
                     save_dict={"network": self.network},
                     save_key_metric=True),
                 MetricsSaver(save_dir=self.output_dir, metrics=['Valid_AUC', 'Valid_ACC']),
+                self.early_stop_handler,
             ]
             self._register_handlers(handlers)
 
