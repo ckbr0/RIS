@@ -93,7 +93,7 @@ def next_slice(ax):
     ax.index = (ax.index + 1) % volume.shape[-1]
     ax.images[0].set_array(volume[ :, :, ax.index])
 
-def large_image_splitter(data, cache_dir):
+def large_image_splitter(data, cache_dir, num_splits):
     print("Splitting large images...")
     len_old = len(data)
     print("original data len:", len_old)
@@ -250,7 +250,7 @@ def transform_and_copy(data, cahce_dir):
     copy_list = np.load(copy_list_path, allow_pickle=True)
     return copy_list
 
-def balance_training_data2(data, copies, seed=None, ratio):
+def balance_training_data2(data, copies, ratio=1, seed=None):
     random.seed(seed)
 
     random.shuffle(copies)
