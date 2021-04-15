@@ -27,7 +27,7 @@ class Validator(SupervisedEvaluator):
         mode: Union[ForwardMode, str] = ForwardMode.EVAL,
         ) -> None:
         self.summary_writer = summary_writer
-        self.early_stop_handler = EarlyStopHandler(patience=patience, score_function=lambda enigne: engine.state.metrics[engine.state.key_metric_name])
+        self.early_stop_handler = EarlyStopHandler(patience=patience, score_function=lambda engine: engine.state.metrics[engine.state.key_metric_name])
 
         super().__init__(
             device,
