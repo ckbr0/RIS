@@ -10,7 +10,6 @@ from monai.data.nifti_writer import write_nifti
 import torch
 import random
 from nrrd_reader import NrrdReader
-import math
 
 import matplotlib.pyplot as plt
 
@@ -94,14 +93,14 @@ def next_slice(ax):
     ax.index = (ax.index + 1) % volume.shape[-1]
     ax.images[0].set_array(volume[ :, :, ax.index])
 
-def large_image_splitter(data, cache_dir, ratio):
+def large_image_splitter(data, cache_dir):
     print("Splitting large images...")
     len_old = len(data)
     print("original data len:", len_old)
     split_images_dir = os.path.join(cache_dir, 'split_images')
     split_images = os.path.join(split_images_dir, 'split_images.npy')
 
-    def _replace_in_data(split_images, ratio):
+    def _replace_in_data(split_images, num_splits):
         new_images = []
         for image in data:
             new_images.append(image)
@@ -109,7 +108,7 @@ def large_image_splitter(data, cache_dir, ratio):
                 source_image = s['source']
                 if image['image'] == source_image:
                     new_images.pop()
-                    for i in range(math.ceil(ratio*len(s["splits"])):
+                    for i in range(num_splits):
                         new_images.append(s["splits"][i])
                     break
         return new_images
@@ -146,7 +145,7 @@ def large_image_splitter(data, cache_dir, ratio):
                     new_image['splits'].append({'image': image_file, 'label': image['label'], '_label': image['_label'], 'seg': seg_file})
                 new_images.append(new_image)
         np.save(split_images, new_images)
-        out_data = _replace_in_data(new_images, ratio)
+        out_data = _replace_in_data(new_images, num_splits)
 
     print("new data len:", len(out_data))
     return out_data
