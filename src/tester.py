@@ -5,7 +5,7 @@ from glob import glob
 import torch
 from torch.utils.data import DataLoader
 from ignite.engine import Engine
-from ignite.metrics import Accuracy
+from ignite.metrics import Accuracy, EpochMetric
 from monai.engines import SupervisedEvaluator
 from monai.transforms import Transform, AsDiscrete
 from monai.handlers import CheckpointLoader, StatsHandler, MetricsSaver, ROCAUC
@@ -38,7 +38,7 @@ class Tester(SupervisedEvaluator):
                 "Test_AUC": ROCAUC(output_transform=lambda x: (x["pred"], x["label"]))
             },
             additional_metrics={
-                "Test_ACC": Accuracy(output_transform=lambda x:(AsDiscrete(threshold_values=True)(x["pred"]), x["label"]))
+                "Test_ACC": Accuracy(output_transform=lambda x: (AsDiscrete(threshold_values=True)(x["pred"]), x["label"]))
             },
             amp=amp,
             mode=mode
