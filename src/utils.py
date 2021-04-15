@@ -108,7 +108,7 @@ def large_image_splitter(data, cache_dir):
                 source_image = s['source']
                 if image['image'] == source_image:
                     new_images.pop()
-                    for i in range(num_splits):
+                    for i in range(max(num_splits, len(s["splits"])):
                         new_images.append(s["splits"][i])
                     break
         return new_images
