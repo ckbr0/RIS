@@ -20,6 +20,7 @@ class Tester(SupervisedEvaluator):
         network: torch.nn.Module,
         load_dir: str,
         out_dir: str,
+        n_classes,
         non_blocking: bool = False,
         post_transform: Optional[Transform] = None,
         amp: bool = False,
@@ -28,6 +29,10 @@ class Tester(SupervisedEvaluator):
         self.load_dir = load_dir
         self.out_dir = out_dir
 
+        if n_classes > 1:
+            to_onehot = AsDiscrete(to_onehot=True, n_classes=2)
+        else:
+            to_onehot = lambda x: x
         super().__init__(
             device,
             test_data_loader,
@@ -35,10 +40,10 @@ class Tester(SupervisedEvaluator):
             non_blocking=non_blocking,
             post_transform=post_transform,
             key_val_metric={
-                "Test_AUC": ROCAUC(output_transform=lambda x: (x["pred"], x["label"]))
+                "Test_AUC": ROCAUC(average="weighted", output_transform=lambda x: (x["pred"], to_onehot(x["label"])))
             },
             additional_metrics={
-                "Test_ACC": Accuracy(output_transform=lambda x: (AsDiscrete(threshold_values=True)(x["pred"]), x["label"]))
+                "Test_ACC": Accuracy(output_transform=lambda x: (AsDiscrete(threshold_values=True)(x["pred"]), to_onehot(x["label"])))
             },
             amp=amp,
             mode=mode

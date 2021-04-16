@@ -19,6 +19,7 @@ class Validator(SupervisedEvaluator):
         val_data_loader: Union[Iterable, DataLoader],
         network: torch.nn.Module,
         loss_function,
+        n_classes,
         patience = 20,
         summary_writer: SummaryWriter = None,
         non_blocking: bool = False,
@@ -27,8 +28,13 @@ class Validator(SupervisedEvaluator):
         mode: Union[ForwardMode, str] = ForwardMode.EVAL,
         ) -> None:
         self.summary_writer = summary_writer
-        self.early_stop_handler = EarlyStopHandler(patience=patience, score_function=lambda enigne: engine.state.metrics[engine.state.key_metric_name])
+        self.early_stop_handler = EarlyStopHandler(patience=patience, score_function=lambda engine: engine.state.metrics[engine.state.key_metric_name])
 
+        if n_classes > 1:
+            to_onehot = AsDiscrete(to_onehot=True, n_classes=2)
+        else:
+            to_onehot = lambda x: x
+        
         super().__init__(
             device,
             val_data_loader,
@@ -37,11 +43,11 @@ class Validator(SupervisedEvaluator):
             iteration_update=self._iteration,
             post_transform=post_transform,
             key_val_metric={
-                "Valid_AUC": ROCAUC(output_transform=lambda x: (x["pred"], x["label"]))
+                "Valid_AUC": ROCAUC(average="weighted", output_transform=lambda x: (x["pred"], to_onehot(x["label"])))
             },
             additional_metrics={
-                "Valid_ACC": Accuracy(output_transform=lambda x: (AsDiscrete(threshold_values=True)(x["pred"]), x["label"])),
-                "Valid_Loss": Loss(loss_fn=loss_function, output_transform=lambda x: (x["pred"], x["label"]))
+                "Valid_ACC": Accuracy(output_transform=lambda x: (AsDiscrete(threshold_values=True)(x["pred"]), to_onehot(x["label"]))),
+                "Valid_Loss": Loss(loss_fn=loss_function, output_transform=lambda x: (x["pred"], x["label"])),
             },
             amp=amp,
             mode=mode
