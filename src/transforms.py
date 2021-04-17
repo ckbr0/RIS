@@ -34,6 +34,13 @@ class CTWindowd(ScaleIntensityRanged):
         self.lower, self.upper = _calc_grey_levels(width, level)
         
         super().__init__(keys, a_min=self.lower, a_max=self.upper, b_min=0.0, b_max=1.0, clip=True, allow_missing_keys=allow_missing_keys)
+    
+    def __call__(self, data):
+        d = dict(data)
+        if d['w'] == True:
+            return d
+        else:
+            return super().__call__(data)
 
 class RandCTWindowd(RandomizableTransform, MapTransform):
 
@@ -95,6 +102,8 @@ class CTSegmentation(MaskIntensityd):
     def __call__(self, data: Mapping[Hashable, np.ndarray]) -> Dict[Hashable, np.ndarray]:
         d = dict(data)
         seg_filename = d[self.mask_key]
+        if not seg_filename:
+            return d
         
         reader = None
         for r in reversed(self.readers):

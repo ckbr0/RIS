@@ -2,10 +2,11 @@ import os
 import shutil
 from collections import defaultdict
 from nrrd import reader
+import glob
 
 import numpy as np
 import nrrd
-from monai.transforms import Compose, LoadImage, RandFlip, RandAffine, AddChannel, SqueezeDim, MaskIntensity
+from monai.transforms import Compose, LoadImage, RandFlip, RandAffine, AddChannel, SqueezeDim, MaskIntensity, AsDiscrete, RandGaussianNoise
 from monai.data.nifti_writer import write_nifti
 import torch
 import random
@@ -48,7 +49,7 @@ def get_data_from_info(path_to_images, path_to_segs, info):
                 label = (1-_label)*np.array([1, 0], dtype=np.float) + _label*np.array([0, 1], dtype=np.float)
             else:
                 label = np.array([_label], dtype=np.float)
-            data.append({'image': image, 'label': label, '_label': _label, 'seg': seg})
+            data.append({'image': image, 'label': label, '_label': _label, 'seg': seg, 'w': False})
         else:
             data.append({'image': image, 'seg': seg})
     return data
@@ -128,7 +129,7 @@ def large_image_splitter(data, cache_dir, num_splits):
             seg_data, _ = nrrd.read(image['seg'])
             z_len = image_data.shape[2]
             if z_len > 200:
-                count = z_len // 80
+                count = z_len // 100
                 print("splitting image:", image["image"], f"into {count} parts", "shape:", image_data.shape, end='\r')
                 split_image_list = [image_data[:, :, idz::count] for idz in range(count)]
                 split_seg_list = [seg_data[:, :, idz::count] for idz in range(count)]
@@ -190,7 +191,7 @@ def transform_and_copy(data, cahce_dir):
         print("transforming and copying images...")
         imageLoader = LoadImage()
         to_copy_list = [x for x in data if int(x['_label'])==1]
-        mul = int(len(data)/len(to_copy_list) - 1)
+        mul = 1#int(len(data)/len(to_copy_list) - 1)
 
         rand_x_flip = RandFlip(spatial_axis=0, prob=0.50)
         rand_y_flip = RandFlip(spatial_axis=1, prob=0.50)
@@ -198,11 +199,12 @@ def transform_and_copy(data, cahce_dir):
         rand_affine = RandAffine(
             prob=1.0,
             rotate_range=(0, 0, np.pi/10),
-            shear_range=(0.1, 0.1, 0.0),
+            shear_range=(0.12, 0.12, 0.0),
             translate_range=(0, 0, 0),
-            scale_range=(0.1, 0.1, 0.0),
+            scale_range=(0.12, 0.12, 0.0),
             padding_mode="zeros"
         )
+        rand_gaussian_noise = RandGaussianNoise(prob=0.5, mean=0.0, std=0.05)
         transform = Compose([
             AddChannel(),
             rand_x_flip,
@@ -227,7 +229,7 @@ def transform_and_copy(data, cahce_dir):
             for i in range(mul):
                 rand_seed = np.random.randint(1e8)
                 transform.set_random_state(seed=rand_seed)
-                new_image_data = np.array(transform(image_data))
+                new_image_data = rand_gaussian_noise(np.array(transform(image_data)))
                 transform.set_random_state(seed=rand_seed)
                 new_seg_data = np.array(transform(seg_data))
                 #multi_slice_viewer(image_data, image_file)
@@ -255,14 +257,23 @@ def balance_training_data2(data, copies, ratio=1, seed=None):
 
     random.shuffle(copies)
     _, n, p = calculate_class_imbalance(data)
-    #x = n - p
     data.extend(copies[:n*ratio-p])
+    
+def load_mixed_images(data_dir):
+    
+    mixed_images_dir = os.path.join(data_dir, 'mixed_images')
+    mixed_images = glob.glob(os.path.join(mixed_images_dir, '*'))
+    
+    data = []
+    for image in mixed_images:
+        data.append({'image': image, 'label': np.array([1], dtype=np.float), '_label': 1, 'seg': "", 'w': True})
 
-def convert_labels(data, dtype=np.float32, as_array=True):
+    return data
+
+def convert_labels(data, dtype=np.float32, as_array=True, n_classes=2):
     for d in data:
-        #_label = d['label']
-        #d['label'] = (1-_label)*np.array([1, 0], dtype=np.float) + _label*np.array([0, 1], dtype=np.float)
         if not as_array:
             d['label'] = d['label'].astype(dtype).item()
         else:
             d['label'] = d['label'].astype(dtype)
+            

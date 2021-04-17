@@ -60,9 +60,12 @@ class Trainer(SupervisedTrainer):
             amp=amp
         )
 
-    def run(self) -> str:
+    def run(self, date=None) -> str:
         
-        now = datetime.datetime.now()
+        if date is not None:
+            now = date
+        else:
+            now = datetime.datetime.now()
         datetime_string = now.strftime('%d/%m/%Y %H:%M:%S')
         print(f'Training started: {datetime_string}')
 
