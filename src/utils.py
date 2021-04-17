@@ -94,23 +94,23 @@ def next_slice(ax):
     ax.index = (ax.index + 1) % volume.shape[-1]
     ax.images[0].set_array(volume[ :, :, ax.index])
 
-def large_image_splitter(data, cache_dir):
+def large_image_splitter(data, cache_dir, num_splits):
     print("Splitting large images...")
     len_old = len(data)
     print("original data len:", len_old)
     split_images_dir = os.path.join(cache_dir, 'split_images')
     split_images = os.path.join(split_images_dir, 'split_images.npy')
 
-    def _replace_in_data(split_images):
+    def _replace_in_data(split_images, num_splits):
         new_images = []
         for image in data:
             new_images.append(image)
             for s in split_images:
                 source_image = s['source']
                 if image['image'] == source_image:
-                    #new_images.pop()
-                    for _s in s["splits"]:
-                        new_images.append(_s)
+                    new_images.pop()
+                    for i in range(max(num_splits, len(s["splits"])):
+                        new_images.append(s["splits"][i])
                     break
         return new_images
 
@@ -146,7 +146,7 @@ def large_image_splitter(data, cache_dir):
                     new_image['splits'].append({'image': image_file, 'label': image['label'], '_label': image['_label'], 'seg': seg_file})
                 new_images.append(new_image)
         np.save(split_images, new_images)
-        out_data = _replace_in_data(new_images)
+        out_data = _replace_in_data(new_images, num_splits)
 
     print("new data len:", len(out_data))
     return out_data
@@ -252,14 +252,12 @@ def transform_and_copy(data, cahce_dir):
     copy_list = np.load(copy_list_path, allow_pickle=True)
     return copy_list
 
-def balance_training_data2(data, copies, seed=None):
+def balance_training_data2(data, copies, ratio=1, seed=None):
     random.seed(seed)
 
     random.shuffle(copies)
     _, n, p = calculate_class_imbalance(data)
-    x = int((n - p) / 3)
-
-    data.extend(copies)
+    data.extend(copies[:n*ratio-p])
     
 def load_mixed_images(data_dir):
     
