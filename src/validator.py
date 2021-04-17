@@ -43,7 +43,7 @@ class Validator(SupervisedEvaluator):
             iteration_update=self._iteration,
             post_transform=post_transform,
             key_val_metric={
-                "Valid_AUC": ROCAUC(average="weighted", output_transform=lambda x: (x["pred"], to_onehot(x["label"])))
+                "Valid_AUC": ROCAUC(average="micro", output_transform=lambda x: (x["pred"], to_onehot(x["label"])))
             },
             additional_metrics={
                 "Valid_ACC": Accuracy(output_transform=lambda x: (AsDiscrete(threshold_values=True)(x["pred"]), to_onehot(x["label"]))),

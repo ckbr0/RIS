@@ -40,7 +40,7 @@ class Tester(SupervisedEvaluator):
             non_blocking=non_blocking,
             post_transform=post_transform,
             key_val_metric={
-                "Test_AUC": ROCAUC(average="weighted", output_transform=lambda x: (x["pred"], to_onehot(x["label"])))
+                "Test_AUC": ROCAUC(average="micro", output_transform=lambda x: (x["pred"], to_onehot(x["label"])))
             },
             additional_metrics={
                 "Test_ACC": Accuracy(output_transform=lambda x: (AsDiscrete(threshold_values=True)(x["pred"]), to_onehot(x["label"])))
