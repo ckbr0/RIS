@@ -94,7 +94,7 @@ def next_slice(ax):
     ax.index = (ax.index + 1) % volume.shape[-1]
     ax.images[0].set_array(volume[ :, :, ax.index])
 
-def large_image_splitter(data, cache_dir, num_splits):
+def large_image_splitter(data, cache_dir, num_splits, only_label_one=False):
     print("Splitting large images...")
     len_old = len(data)
     print("original data len:", len_old)
@@ -107,9 +107,11 @@ def large_image_splitter(data, cache_dir, num_splits):
             new_images.append(image)
             for s in split_images:
                 source_image = s['source']
+                if image['_label'] == 1 and only_label_one is True:
+                    continue
                 if image['image'] == source_image:
-                    new_images.pop()
-                    for i in range(max(num_splits, len(s["splits"]))):
+                    #new_images.pop()
+                    for i in range(min(num_splits, len(s["splits"]))):
                         new_images.append(s["splits"][i])
                     break
         return new_images
@@ -118,7 +120,7 @@ def large_image_splitter(data, cache_dir, num_splits):
         new_images = np.load(split_images, allow_pickle=True)
         """for s in new_images:
             print("split image:", s["source"], end='\r')"""
-        out_data = _replace_in_data(new_images)
+        out_data = _replace_in_data(new_images, num_splits)
     else:
         if not os.path.exists(split_images_dir):
             os.mkdir(split_images_dir)
@@ -127,9 +129,10 @@ def large_image_splitter(data, cache_dir, num_splits):
         for image in data:
             image_data, _ = imageLoader(image["image"])
             seg_data, _ = nrrd.read(image['seg'])
+            label = image['_label']
             z_len = image_data.shape[2]
             if z_len > 200:
-                count = z_len // 100
+                count = z_len // 80
                 print("splitting image:", image["image"], f"into {count} parts", "shape:", image_data.shape, end='\r')
                 split_image_list = [image_data[:, :, idz::count] for idz in range(count)]
                 split_seg_list = [seg_data[:, :, idz::count] for idz in range(count)]
@@ -141,9 +144,29 @@ def large_image_splitter(data, cache_dir, num_splits):
                     seg_file = os.path.join(split_images_dir, seg_file + f'_seg_{i}.nrrd')
                     split_image = np.array(split_image_list[i])
                     split_seg = np.array(split_seg_list[i], dtype=np.uint8)
+                    
+                    rand_affine = RandAffine(
+                        prob=1.0,
+                        rotate_range=(0, 0, np.pi/16),
+                        shear_range=(0.07, 0.07, 0.0),
+                        translate_range=(0, 0, 0),
+                        scale_range=(0.07, 0.07, 0.0),
+                        padding_mode="zeros"
+                    )
+                    transform = Compose([
+                        AddChannel(),
+                        rand_affine,
+                        SqueezeDim(),
+                    ])
+                    rand_seed = np.random.randint(1e8)
+                    transform.set_random_state(seed=rand_seed)
+                    split_image = transform(split_image).detach().cpu().numpy()
+                    transform.set_random_state(seed=rand_seed)
+                    split_seg = transform(split_seg).detach().cpu().numpy()
+                    
                     write_nifti(split_image, image_file, resample=False)
                     nrrd.write(seg_file, split_seg)
-                    new_image['splits'].append({'image': image_file, 'label': image['label'], '_label': image['_label'], 'seg': seg_file})
+                    new_image['splits'].append({'image': image_file, 'label': image['label'], '_label': image['_label'], 'seg': seg_file, 'w': False})
                 new_images.append(new_image)
         np.save(split_images, new_images)
         out_data = _replace_in_data(new_images, num_splits)
