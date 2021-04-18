@@ -23,6 +23,7 @@ def setup_directories():
     directories['cache'] = os.path.abspath(os.path.join(src_dir, '..', 'cache'))
     directories['persistent'] = os.path.abspath(os.path.join(src_dir, '..', 'cache' ,'persistent'))
     directories['split_images'] = os.path.abspath(os.path.join(src_dir, '..', 'cache', 'split_images'))
+    directories['results'] = os.path.abspath(os.path.join(src_dir, '..', 'out', 'results'))
     return directories
 
 def replace_suffix(string, old_suffix, new_suffix):
@@ -51,7 +52,7 @@ def get_data_from_info(path_to_images, path_to_segs, info):
                 label = np.array([_label], dtype=np.float)
             data.append({'image': image, 'label': label, '_label': _label, 'seg': seg, 'w': False})
         else:
-            data.append({'image': image, 'seg': seg})
+            data.append({'image': image, 'seg': seg, 'w': False})
     return data
 
 def remove_keymap_conflicts(new_keys_set):
